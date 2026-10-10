@@ -1,0 +1,14 @@
+# Build output
+plugin/target/
+ClassMarkers.dll
+
+# Runtime log (written next to the DLL)
+*.log
+
+# Generator: extracted Convergence data, bundled third-party Python modules
+tools/cache/
+tools/pylib/
+__pycache__/
+
+# This machine's ConvergenceER location
+convergence_path.txt

@@ -1,0 +1,233 @@
+"""Generate the Class Markers plugin's marker data from The Convergence's own files.
+
+    python generate.py
+
+1. Extracts regulation.bin params and the English item text from ConvergenceER\\mod into
+   tools\\cache (skipped when the sources haven't changed since the last run).
+2. Parses the class notes into per-class item lists.
+3. Locates every listed item (pickups, boss/NPC rewards) in the map and event files.
+4. Writes plugin\\src\\generated.rs, then the plugin is rebuilt with `cargo build --release`.
+"""
+import json
+import os
+import struct
+import sys
+from collections import Counter, defaultdict
+
+import common
+
+# Map areas whose items are placed on the dungeon's entrance icon instead of their exact spot:
+# caves, catacombs, tunnels, gaols and the like, which aren't drawn on the world map.
+ENTRANCE_AREAS = {30, 31, 32, 40, 41, 42, 43}
+OVERWORLD_AREAS = {60, 61}
+BOSS_ICON = 499           # Convergence's boss marker icon; never used as an entrance
+MARKER_ICON = 88          # round seal (user choice), see available_map_icons.png
+ITEM_KIND = {"rune": 1, "weapon": 2, "armor": 3}   # ItemLot category numbers
+
+
+def extract():
+    """Decode Convergence's regulation.bin and English item text into the cache."""
+    from dump_fmg import extract_msgbnd
+    from reg import extract_regulation
+
+    sources = [
+        os.path.join(common.MOD, "regulation.bin"),
+        os.path.join(common.MOD, "msg", "engus", "item_dlc02.msgbnd.dcx"),
+    ]
+    stamp_path = os.path.join(common.CACHE, "sources.json")
+    stamp = {s: [os.path.getsize(s), int(os.path.getmtime(s))] for s in sources}
+    if os.path.exists(stamp_path) and json.load(open(stamp_path)) == {k: v for k, v in stamp.items()}:
+        print("Convergence files unchanged since the last run - using the cache.")
+        return
+    os.makedirs(common.CACHE, exist_ok=True)
+    print("Extracting regulation.bin ...")
+    extract_regulation(sources[0], common.REG_DIR)
+    print("Extracting item text ...")
+    extract_msgbnd(sources[1], common.ITEM_DIR)
+    json.dump(stamp, open(stamp_path, "w"))
+
+
+def world_map_rows():
+    from param import rows
+    r, _ = rows(os.path.join(common.REG_DIR, "WorldMapPointParam.param"))
+    return r
+
+
+def row_info(rid, b):
+    return {
+        "id": rid,
+        "area": b[0x20], "gx": b[0x21], "gz": b[0x22],
+        "pos": struct.unpack_from("<3f", b, 0x24),
+        "icon": struct.unpack_from("<H", b, 0x0C)[0],
+        "disp_mask": b[0x18],
+        "text_id": struct.unpack_from("<i", b, 0x30)[0],
+    }
+
+
+class Placer:
+    """Turns an item location (map + position) into a world-map row placement.
+
+    A placement is (block, area, gx, gz, x, y, z, disp_mask, text_id). The row id the plugin
+    gives it is block * 100 + a free two-digit number, because the map only draws rows whose
+    id encodes their map block: 6 digits AA BB NN for dungeon maps (mAA_BB), 8 digits
+    PP GG ZZ NN for world-map tiles. Verified in-game with test build 0.1.6.
+    """
+
+    def __init__(self, wmp):
+        self.rows = {rid: row_info(rid, b) for rid, b in wmp.items()}
+        self.by_block = defaultdict(list)
+        for rid, info in self.rows.items():
+            self.by_block[rid // 100].append(info)
+        # Tile prefix (PP) per overworld tile, from Convergence's own 8-digit rows.
+        self.tile_prefix = defaultdict(Counter)
+        for rid, info in self.rows.items():
+            s = str(rid)
+            if len(s) == 8 and info["area"] in OVERWORLD_AREAS and s[2:4] == f"{info['gx']:02d}" \
+                    and s[4:6] == f"{info['gz']:02d}" and s[0] in "68":
+                self.tile_prefix[(info["area"], info["gx"], info["gz"])][int(s[:2])] += 1
+        PL = {}
+        for f in ["PlaceName", "PlaceName_dlc01", "PlaceName_dlc02"]:
+            p = os.path.join(common.ITEM_DIR, f + ".fmg.json")
+            PL.update({int(k): v for k, v in json.load(open(p, encoding="utf-8")).items()})
+        self.place_names = PL
+
+    def prefix_for_tile(self, area, gx, gz):
+        here = self.tile_prefix.get((area, gx, gz))
+        if here:
+            return here.most_common(1)[0][0]
+        # Nearest tile that has one (same overworld).
+        best = min(((abs(k[1] - gx) + abs(k[2] - gz), c.most_common(1)[0][0])
+                    for k, c in self.tile_prefix.items() if k[0] == area), default=None)
+        return best[1] if best else (61 if area == 60 else 68)
+
+    def nearest_place_name(self, area, gx, gz, x, z):
+        """Text id of the closest named location row in the same area (label fallback).
+        Overworld rows are compared in world coordinates, dungeon rows within the same map."""
+        overworld = area in OVERWORLD_AREAS
+        wx, wz = (gx * 256 + x, gz * 256 + z) if overworld else (x, z)
+        best = None
+        for info in self.rows.values():
+            if info["area"] != area or info["icon"] == BOSS_ICON or info["text_id"] not in self.place_names:
+                continue
+            if not overworld and info["gx"] != gx:
+                continue
+            ox, oz = info["pos"][0], info["pos"][2]
+            if overworld:
+                ox, oz = info["gx"] * 256 + ox, info["gz"] * 256 + oz
+            d = (ox - wx) ** 2 + (oz - wz) ** 2
+            if best is None or d < best[0]:
+                best = (d, info["text_id"])
+        return best[1] if best else -1
+
+    def entrance_row(self, aa, bb):
+        """The dungeon's own map icon (id AABB00..), not a boss marker."""
+        cands = sorted((i for i in self.by_block.get(aa * 100 + bb, []) if i["icon"] != BOSS_ICON),
+                       key=lambda i: i["id"])
+        return cands[0] if cands else None
+
+    def disp_mask_for_area(self, aa, bb):
+        masks = Counter(i["disp_mask"] for i in self.by_block.get(aa * 100 + bb, []))
+        if masks:
+            return masks.most_common(1)[0][0]
+        return 2 if aa == 12 else 4 if (20 <= aa <= 28 or 40 <= aa <= 43 or aa in (17, 61)) else 1
+
+    def place(self, mapname, pos):
+        aa, bb, cc = int(mapname[1:3]), int(mapname[4:6]), int(mapname[7:9])
+        if aa in OVERWORLD_AREAS:
+            pp = self.prefix_for_tile(aa, bb, cc)
+            return dict(block=pp * 10000 + bb * 100 + cc, area=aa, gx=bb, gz=cc,
+                        x=pos[0], y=pos[1], z=pos[2], disp_mask=1 if aa == 60 else 4,
+                        text_id=self.nearest_place_name(aa, bb, cc, pos[0], pos[2]), how="exact")
+        if aa in ENTRANCE_AREAS:
+            e = self.entrance_row(aa, bb)
+            if e:
+                return dict(block=e["id"] // 100, area=e["area"], gx=e["gx"], gz=e["gz"],
+                            x=e["pos"][0], y=e["pos"][1], z=e["pos"][2], disp_mask=e["disp_mask"],
+                            text_id=e["text_id"], how="entrance")
+        e = self.entrance_row(aa, bb)
+        text_id = e["text_id"] if e else self.nearest_place_name(aa, bb, 0, pos[0], pos[2])
+        return dict(block=aa * 100 + bb, area=aa, gx=bb, gz=0, x=pos[0], y=pos[1], z=pos[2],
+                    disp_mask=self.disp_mask_for_area(aa, bb), text_id=text_id, how="exact-dungeon")
+
+    def place_on_row(self, rid):
+        r = self.rows[rid]
+        return dict(block=rid // 100, area=r["area"], gx=r["gx"], gz=r["gz"], x=r["pos"][0],
+                    y=r["pos"][1], z=r["pos"][2], disp_mask=r["disp_mask"], text_id=r["text_id"],
+                    how="boss-marker")
+
+
+def build_markers(classes, report, placer):
+    out, unplaced = [], []
+    note_ids = {c["name"]: c["pathId"] for c in classes}
+    for entry in report:
+        placed_any = False
+        for res in entry["results"]:
+            if res["how"] in ("pickup", "event", "defeat"):
+                p = placer.place(res["map"], res["pos"])
+            elif res["how"] == "boss-marker":
+                p = placer.place_on_row(res["row"])
+            else:
+                continue
+            item_id = next((i for n, i in __import__("locate").resolve_ids(entry["kind"], res["piece"])
+                            if n == res["piece"]), 0)
+            out.append(dict(p, cls=entry["class"], note=note_ids[entry["class"]], entry=entry["name"],
+                            kind=ITEM_KIND[entry["kind"]], item_id=item_id, item=res["piece"],
+                            flag=res.get("flag", 0) or 0, src=f'{res["how"]} {res.get("map", "")}'.strip()))
+            placed_any = True
+        if not placed_any:
+            unplaced.append(entry)
+    # One marker per note entry per spot: an armor set's pieces usually lie together.
+    seen, unique = set(), []
+    for m in out:
+        k = (m["cls"], m["entry"], m["block"], round(m["x"]), round(m["z"]))
+        if k not in seen:
+            seen.add(k)
+            unique.append(m)
+    return unique, unplaced
+
+
+def rust_str(s):
+    return json.dumps(s, ensure_ascii=False)
+
+
+def write_rust(classes, markers, placer):
+    lines = [
+        "// @generated by tools/generate.py from The Convergence's files. Do not edit by hand.",
+        "use crate::markers::GenMarker;",
+        "",
+        "/// (class name, \"Note: Path of the <class>\" goods id)",
+        "pub const CLASSES: &[(&str, u32)] = &[",
+    ]
+    for c in classes:
+        lines.append(f"    ({rust_str(c['name'])}, {c['pathId']}),")
+    lines += ["];", "", "pub const MARKERS: &[GenMarker] = &["]
+    for m in markers:
+        lines.append(
+            "    GenMarker { note: %d, kind: %d, item_id: %d, block: %d, area: %d, grid_x: %d, grid_z: %d, "
+            "x: %.3f, y: %.3f, z: %.3f, disp_mask: %d, text_id: %d, hide_flag: %d, name: %s, label: %s },"
+            % (m["note"], m["kind"], m["item_id"], m["block"], m["area"], m["gx"], m["gz"],
+               m["x"], m["y"], m["z"], m["disp_mask"], m["text_id"], m["flag"], rust_str(m["entry"]),
+               rust_str(f'{m["cls"]}: {m["entry"]} ({m["src"]}, {m["how"]})')))
+    lines += ["];", ""]
+    open(common.GENERATED_RS, "w", encoding="utf-8").write("\n".join(lines))
+
+
+def main():
+    extract()
+    from build_data import build_classes
+    classes = build_classes()
+    import locate
+    report = locate.locate_all(classes)
+    placer = Placer(world_map_rows())
+    markers, unplaced = build_markers(classes, report, placer)
+    write_rust(classes, markers, placer)
+    by_class = Counter(m["cls"] for m in markers)
+    print(f"Wrote {len(markers)} markers for {len(by_class)} classes to {common.GENERATED_RS}")
+    print(f"{len(unplaced)} note entries could not be placed (see cache/unplaced.json)")
+    json.dump([{k: e[k] for k in ("class", "kind", "name", "loc", "status")} for e in unplaced],
+              open(os.path.join(common.CACHE, "unplaced.json"), "w", encoding="utf-8"),
+              ensure_ascii=False, indent=1)
+
+
+if __name__ == "__main__":
+    main()
