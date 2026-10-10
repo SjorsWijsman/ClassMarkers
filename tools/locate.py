@@ -68,7 +68,11 @@ def msb(mapname):
         pos = struct.unpack_from("<3f", d, o + 0x20)
         ent_off = struct.unpack_from("<q", d, o + 0x60)[0]
         ent = struct.unpack_from("<i", d, o + ent_off)[0] if ent_off else 0
-        part = {"name": wstr(o + no), "type": typ, "pos": pos, "entity": ent}
+        npc = 0
+        if typ == 2:  # enemy: its NpcParam id sits at +0x0C of the part's type data
+            td = struct.unpack_from("<q", d, o + 0x68)[0]
+            npc = struct.unpack_from("<i", d, o + td + 0x0C)[0] if td else 0
+        part = {"name": wstr(o + no), "type": typ, "pos": pos, "entity": ent, "npc": npc}
         parts.append(part)
         if ent > 0:
             by_entity[ent] = part
@@ -86,6 +90,60 @@ def msb(mapname):
 
 
 ALL_MAPS = sorted(os.path.basename(f)[:-8] for f in glob.glob(MSB_DIR + "*.msb.dcx"))
+
+
+_world_index = None
+
+
+def world_index():
+    """Across ALL map files: placed enemies by NpcParam id, and pickups by item lot.
+    {"enemies": {npc: [(map, part)]}, "pickups": {lot: [(map, part)]}}. Cached in cache/ and
+    rebuilt when the map files change."""
+    global _world_index
+    if _world_index is not None:
+        return _world_index
+    files = glob.glob(MSB_DIR + "*.msb.dcx")
+    stamp = [len(files), max(int(os.path.getmtime(f)) for f in files)]
+    path = os.path.join(common.CACHE, "world_index.json")
+    if os.path.exists(path):
+        data = json.load(open(path, encoding="utf-8"))
+        if data.get("stamp") == stamp:
+            _world_index = {k: {int(i): v for i, v in data[k].items()} for k in ("enemies", "pickups")}
+            return _world_index
+    print("Indexing enemies and pickups in all map files (once) ...")
+    enemies, pickups = defaultdict(list), defaultdict(list)
+    for m in ALL_MAPS:
+        ms = msb(m)
+        if not ms:
+            continue
+        for p in ms["parts"]:
+            if p["npc"] > 0:
+                enemies[p["npc"]].append((m, p))
+        for lot, ps in ms["treasure"].items():
+            for p in ps:
+                pickups[lot].append((m, p))
+        _msb_cache.pop(m, None)  # keep memory flat
+    json.dump({"stamp": stamp, "enemies": enemies, "pickups": pickups}, open(path, "w", encoding="utf-8"))
+    _world_index = {"enemies": dict(enemies), "pickups": dict(pickups)}
+    return _world_index
+
+
+# NpcParam -> the item lots its enemies drop (itemLotId fields at +0x30 / +0x34).
+NPC_BY_LOT = defaultdict(list)
+_npc_rows, _ = rows(f"{common.REG_DIR}/NpcParam.param")
+for _npc, _b in _npc_rows.items():
+    for _at in (0x30, 0x34):
+        _lot = struct.unpack_from("<i", _b, _at)[0]
+        if _lot > 0:
+            NPC_BY_LOT[_lot].append(_npc)
+del _npc_rows
+
+# A drop whose enemy is placed in more distinct spots than this is a common enemy or a recurring
+# NPC (D, Juno Hoslow appear along their questlines), not a specific location: no marker.
+MAX_ENEMY_SPOTS = 3
+
+# Result kinds that carry a map position.
+PLACED = ("pickup", "event", "defeat", "enemy")
 
 
 def map_for_id(n):
@@ -170,10 +228,75 @@ for rid, b in WMP.items():
                              "pos": struct.unpack_from("<3f", b, 0x24)})
 
 
-def boss_for_text(loc):
-    hits = [m for m in BOSS_MARKERS if m["boss"] and m["boss"].lower() in loc.lower()]
-    hits.sort(key=lambda m: -len(m["boss"]))
-    return hits[:1]
+# Named map icons a note's location text can refer to: Convergence's boss markers and every
+# landmark icon with a place name (evergaols, caves, ruins...). Region labels (icon 400) are left
+# out: they name whole areas, not a place to go.
+REGION_LABEL_ICON = 400
+
+
+def _world_xz(b):
+    """(area, world x, world z) of a row; overworld rows are tile + local position."""
+    area, gx, gz = b[0x20], b[0x21], b[0x22]
+    x, z = struct.unpack_from("<f", b, 0x24)[0], struct.unpack_from("<f", b, 0x2C)[0]
+    return (area, gx * 256 + x, gz * 256 + z) if area in (60, 61) else (area, x, z)
+
+
+NAMED_ROWS, REGION_LABELS = [], []
+for rid, b in WMP.items():
+    t = struct.unpack_from("<i", b, 0x30)[0]
+    icon = struct.unpack_from("<H", b, 0x0C)[0]
+    if t not in PLACE or not PLACE[t] or "<" in PLACE[t]:
+        continue
+    if icon == REGION_LABEL_ICON:
+        REGION_LABELS.append({"name": PLACE[t], "at": _world_xz(b)})
+    else:
+        NAMED_ROWS.append({"row": rid, "name": PLACE[t], "boss": icon == 499, "at": _world_xz(b)})
+
+
+def region_words(row):
+    """Words of the region label nearest to a row ("East Caelid - Dragonbarrow"), same area only."""
+    from matching import norm
+    area, x, z = row["at"]
+    near = [r for r in REGION_LABELS if r["at"][0] == area]
+    if not near:
+        return set()
+    best = min(near, key=lambda r: (r["at"][1] - x) ** 2 + (r["at"][2] - z) ** 2)
+    return set(norm(best["name"]))
+
+
+def place_for_text(loc):
+    """The named map icon(s) a note's location text refers to: the longest icon name contained in
+    it (spelling-insensitive, whole words), e.g. "Forlorn Hound Evergaol", "Found after defeating
+    Valiant Gargoyle in Altus". Boss markers win ties when the text talks about a defeat/drop.
+    When the name exists several times (eight Night's Cavalry), the copies whose region shares
+    the most words with the note win ("East Liurnia Night's Cavalry Drop"); all if none does.
+    NPC gifts and quests name a condition, not a place, so they get nothing here."""
+    from matching import norm
+    if re.search(r"given by|quest", loc, re.I):
+        return []
+    words = norm(loc)
+    defeat = re.search(r"defeat|drop|killed|slain", loc, re.I) is not None
+    best, hits = None, []
+    for r in NAMED_ROWS:
+        nw = norm(r["name"])
+        if not nw or not any(words[i:i + len(nw)] == nw for i in range(len(words) - len(nw) + 1)):
+            continue
+        score = (len(nw), r["boss"] == defeat)
+        if best is None or score > best:
+            best, hits = score, [r]
+        elif score == best:
+            hits.append(r)
+    same_name = [r for r in hits if r["name"] == hits[0]["name"]] if hits else []
+    if len(same_name) > 1:
+        # Area names decide, compass words only break ties ("East Liurnia" is not East Caelid).
+        compass = {"north", "south", "east", "west", "central"}
+        overlap = {r["row"]: (len((region_words(r) - compass) & set(words)),
+                              len(region_words(r) & compass & set(words))) for r in same_name}
+        top = max(overlap.values())
+        if top[0] == 0:
+            return []  # the note doesn't say which one: no marker beats a pile of wrong ones
+        same_name = [r for r in same_name if overlap[r["row"]] == top]
+    return same_name
 
 
 # ---- resolution -------------------------------------------------------------
@@ -225,12 +348,34 @@ def locate(cat, item_id, loc_text):
                 if found:
                     break
         if not found:
+            # 4. a pickup in a map file other than the one the lot id points at
+            for l in chain:
+                for m, p in world_index()["pickups"].get(l, []):
+                    results.append({"how": "pickup", "map": m, "pos": p["pos"], "part": p["name"], "lot": l, "flag": flag})
+                    found = True
+                if found:
+                    break
+        if not found:
+            # 5. dropped by an enemy: lot <- NpcParam <- where that enemy is placed
+            for l in chain:
+                placed = [mp for npc in NPC_BY_LOT.get(l, []) for mp in world_index()["enemies"].get(npc, [])]
+                if not placed:
+                    continue
+                spots = {(m, round(p["pos"][0]), round(p["pos"][2])) for m, p in placed}
+                if len(spots) > MAX_ENEMY_SPOTS:
+                    results.append({"how": "common-enemy", "lot": l, "flag": flag, "count": len(spots)})
+                else:
+                    for m, p in placed:
+                        results.append({"how": "enemy", "map": m, "pos": p["pos"], "part": p["name"], "lot": l, "flag": flag})
+                found = True
+                break
+        if not found:
             results.append({"how": "lot-only", "lot": lot, "flag": flag,
                             "events": [s for s, _, _ in lot_in_events(lot)][:3]})
-    # 3. the note names a boss that has a Convergence marker
-    if not any(r["how"] in ("pickup", "event", "defeat") for r in results):
-        for bm in boss_for_text(loc_text):
-            results.append({"how": "boss-marker", "row": bm["row"], "boss": bm["boss"]})
+    # 6. the note's location text names a boss marker or landmark icon on the map
+    if not any(r["how"] in PLACED for r in results):
+        for r in place_for_text(loc_text):
+            results.append({"how": "boss-marker" if r["boss"] else "place-name", "row": r["row"], "boss": r["name"]})
     return results
 
 
@@ -247,8 +392,11 @@ def locate_all(classes, only=None):
                 for r in locate(cat, i, loc):
                     r.update(piece=piece, item_id=i, cat=cat)
                     res.append(r)
-            how = "unresolved-name" if not ids else                 ("exact" if any(r["how"] in ("pickup", "event", "defeat") for r in res) else
-                 "boss-marker" if any(r["how"] == "boss-marker" for r in res) else "no-position")
+            hows = {r["how"] for r in res}
+            how = ("unresolved-name" if not ids else
+                   "exact" if hows & set(PLACED) else
+                   "boss-marker" if "boss-marker" in hows else
+                   "place-name" if "place-name" in hows else "no-position")
             report.append({"class": c["name"], "kind": kind, "name": name, "loc": loc, "status": how, "results": res})
     json.dump(report, open(f"{common.CACHE}/locate_report.json", "w", encoding="utf-8"),
               ensure_ascii=False, indent=1, default=list)

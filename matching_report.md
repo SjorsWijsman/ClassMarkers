@@ -31,12 +31,12 @@ spelling difference between the note and the item's real name.
 | Retainer | weapon | Greatbow | Greatbow | exact | yes |
 | Retainer | weapon | Bracelet of Gold | Bracelet of Gold | exact | yes |
 | Retainer | weapon | Bracelet of Shadow | Bracelet of Shadow | exact | yes |
-| Retainer | weapon | Smithscript Rosary | Smithscript Rosary | exact | no |
+| Retainer | weapon | Smithscript Rosary | Smithscript Rosary | exact | yes |
 | Retainer | weapon | Regal Splitblade | Regal Splitblade | exact | yes |
-| Vanguard | armor | Ronin's Gauntlets | Ronin's Gauntlets | exact | no |
+| Vanguard | armor | Ronin's Gauntlets | Ronin's Gauntlets | exact | yes |
 | Vanguard | armor | Ronin's Greaves | Ronin's Greaves | exact | no |
 | Vanguard | armor | Ronin's Armor | Ronin's Armor | exact | no |
-| Vanguard | armor | Iron Kasa | Iron Kasa | exact | no |
+| Vanguard | armor | Iron Kasa | Iron Kasa | exact | yes |
 | Vanguard | armor | Scaled Gauntlets | Scaled Gauntlets | exact | yes |
 | Vanguard | armor | Scaled Greaves | Scaled Greaves | exact | no |
 | Vanguard | armor | Scaled Armor | Scaled Armor | exact | yes |
@@ -44,7 +44,7 @@ spelling difference between the note and the item's real name.
 | Vanguard | armor | Night's Cavalry Gauntlets | Night's Cavalry Gauntlets | exact | yes |
 | Vanguard | armor | Night's Cavalry Greaves | Night's Cavalry Greaves | exact | yes |
 | Vanguard | armor | Night's Cavalry Armor | Night's Cavalry Armor | exact | yes |
-| Vanguard | armor | Night's Cavalry Helm | Night's Cavalry Helm | exact | yes |
+| Vanguard | armor | Night's Cavalry Helm | Night's Cavalry Helm | exact | no |
 | Vanguard | weapon | Commander's Standard | Commander's Standard | exact | yes |
 | Vanguard | weapon | Ghiza's Wheel | Ghiza's Wheel | exact | yes |
 | Vanguard | weapon | Osian's Greatsword | Osian's Greatsword | exact | yes |
@@ -57,12 +57,12 @@ spelling difference between the note and the item's real name.
 | Vanguard | weapon | Greatbow | Greatbow | exact | yes |
 | Vanguard | weapon | Bracelet of Gold | Bracelet of Gold | exact | yes |
 | Vanguard | weapon | Bracelet of Shadow | Bracelet of Shadow | exact | yes |
-| Vanguard | weapon | Smithscript Rosary | Smithscript Rosary | exact | no |
+| Vanguard | weapon | Smithscript Rosary | Smithscript Rosary | exact | yes |
 | Vanguard | weapon | Regal Splitblade | Regal Splitblade | exact | yes |
 | Marksman | armor | Page Gloves | Page Gloves | exact | yes |
 | Marksman | armor | Page Trousers | Page Trousers | exact | yes |
 | Marksman | armor | Page Garb | Page Garb | exact | yes |
-| Marksman | armor | Page Hood | Page Hood | exact | no |
+| Marksman | armor | Page Hood | Page Hood | exact | yes |
 | Marksman | armor | High Page Gloves | High Page Gloves | exact | yes |
 | Marksman | armor | High Page Trousers | High Page Trousers | exact | yes |
 | Marksman | armor | High Page Garb | High Page Clothes | **rest of its set** | yes |
@@ -134,15 +134,15 @@ spelling difference between the note and the item's real name.
 | Dreadnought | weapon | Golem's Greatbow | Golem Greatbow | **spelling** | yes |
 | Dreadnought | weapon | Bracelet of Gold | Bracelet of Gold | exact | yes |
 | Dreadnought | weapon | Cragsplitter | Cragsplitter | exact | yes |
-| Sellsword | armor | Kaiden Gauntlets | Kaiden Gauntlets | exact | no |
+| Sellsword | armor | Kaiden Gauntlets | Kaiden Gauntlets | exact | yes |
 | Sellsword | armor | Kaiden Greaves | Kaiden Trousers | **leg piece name** | yes |
-| Sellsword | armor | Kaiden Armor | Kaiden Armor | exact | no |
+| Sellsword | armor | Kaiden Armor | Kaiden Armor | exact | yes |
 | Sellsword | armor | Kaiden Helm | Kaiden Helm | exact | yes |
 | Sellsword | armor | Dancer's Bracer | Dancer's Bracer | exact | yes |
 | Sellsword | armor | Dancer's Trousers | Dancer's Trousers | exact | yes |
 | Sellsword | armor | Dancer's Dress | Dancer's Dress | exact | yes |
 | Sellsword | armor | Dancer's Hood | Dancer's Hood | exact | yes |
-| Sellsword | armor | Ascetic's Wrist Guards | Ascetic's Wrist Guards | exact | no |
+| Sellsword | armor | Ascetic's Wrist Guards | Ascetic's Wrist Guards | exact | yes |
 | Sellsword | armor | Ascetic's Ankle Guards | Ascetic's Ankle Guards | exact | yes |
 | Sellsword | armor | Ascetic's Loincloth | Ascetic's Loincloth | exact | yes |
 | Sellsword | armor | Curseblade Mask | Curseblade Mask | exact | yes |
@@ -181,7 +181,7 @@ spelling difference between the note and the item's real name.
 | Glint Sorcerer | rune | Glowing Glintstone Rune | Glowing Glintstone Rune | exact | yes |
 | Glint Sorcerer | rune | Shining Glintstone Rune | Shining Glintstone Rune | exact | yes |
 | Glint Sorcerer | rune | Radiant Glintstone Rune | Radiant Glintstone Rune | exact | yes |
-| Glint Sorcerer | rune | Shadow Glintstone Rune | Shadow Glintstone Rune | exact | no |
+| Glint Sorcerer | rune | Shadow Glintstone Rune | Shadow Glintstone Rune | exact | yes |
 | Glint Sorcerer | armor | Spellblade Set | Spellblade's Gloves, Spellblade's Pointed Hat, Spellblade's Traveling Attire, Spellblade's Trousers | set | yes |
 | Glint Sorcerer | armor | Preceptor's Set | Preceptor's Big Hat, Preceptor's Gloves, Preceptor's Long Gown, Preceptor's Trousers | set | yes |
 | Glint Sorcerer | armor | Carian Knight Set | Carian Knight Armor, Carian Knight Gauntlets, Carian Knight Greaves, Carian Knight Helm | set | yes |
@@ -213,7 +213,7 @@ spelling difference between the note and the item's real name.
 | Starcaller | armor | Gaius Set | Gaius's Armor, Gaius's Gauntlets, Gaius's Greaves, Gaius's Helm | set | no |
 | Starcaller | armor | High Priest Set | High Priest Gloves, High Priest Hat, High Priest Robe, High Priest Undergarments | set | yes |
 | Starcaller | weapon | Sword of the Cosmos | Sword of the Cosmos | exact | yes |
-| Starcaller | weapon | Alabaster Lord's Greatsword | Alabaster Lord's Greatsword | exact | no |
+| Starcaller | weapon | Alabaster Lord's Greatsword | Alabaster Lord's Greatsword | exact | yes |
 | Starcaller | weapon | Wing of Astel | Wing of Astel | exact | yes |
 | Starcaller | weapon | Onyx Lord's Greatsword | Onyx Lord's Greatsword | exact | yes |
 | Starcaller | weapon | Meteoric Ore Blade | Meteoric Ore Blade | exact | yes |
@@ -221,7 +221,7 @@ spelling difference between the note and the item's real name.
 | Starcaller | weapon | Fallingstar Beast Jaw | Fallingstar Beast Jaw | exact | yes |
 | Starcaller | weapon | Ruins Greatsword | Ruins Greatsword | exact | no |
 | Starcaller | weapon | Starscourge Greatsword | Starscourge Greatsword | exact | no |
-| Starcaller | weapon | Rift Shield | Rift Shield | exact | no |
+| Starcaller | weapon | Rift Shield | Rift Shield | exact | yes |
 | Starcaller | weapon | Meteorite Staff | Meteorite Staff | exact | yes |
 | Starcaller | weapon | Starcaller's Mattock | Starcaller Mattock | **spelling** | yes |
 | Underworld Mage | rune | Shimmering Rune of the Dragonkin | Shimmering Rune of the Dragonkin | exact | yes |
@@ -252,7 +252,7 @@ spelling difference between the note and the item's real name.
 | Volcanist | armor | Hoslow Set | Hoslow's Armor, Hoslow's Gauntlets, Hoslow's Greaves, Hoslow's Helm | set | yes |
 | Volcanist | weapon | Molten Sword | Molten Sword | exact | yes |
 | Volcanist | weapon | Blaphemous Blade | Blasphemous Blade | **typo** | no |
-| Volcanist | weapon | Magma Blade | Magma Blade | exact | no |
+| Volcanist | weapon | Magma Blade | Magma Blade | exact | yes |
 | Volcanist | weapon | Magma Wyrm's Scalesword | Magma Wyrm's Scalesword | exact | yes |
 | Volcanist | weapon | Devourer's Scepter | Devourer's Scepter | exact | yes |
 | Volcanist | weapon | Seething Flail | Seething Flail | exact | yes |
@@ -268,7 +268,7 @@ spelling difference between the note and the item's real name.
 | Stormcaller | rune | Shadow Rune of the Storm | Shadow Rune of the Storm | exact | yes |
 | Stormcaller | armor | Banished Knight Set | Banished Knight Armor, Banished Knight Gauntlets, Banished Knight Greaves, Banished Knight Helm | set | yes |
 | Stormcaller | armor | Divine Beast Set | Divine Beast Gauntlets, Divine Beast Greaves, Divine Beast Helm, Divine Beast Warrior Armor | set | yes |
-| Stormcaller | armor | Set of Solitude | Armor of Solitude, Gauntlets of Solitude, Greaves of Solitude, Helm of Solitude | set | no |
+| Stormcaller | armor | Set of Solitude | Armor of Solitude, Gauntlets of Solitude, Greaves of Solitude, Helm of Solitude | set | yes |
 | Stormcaller | weapon | Banished Knight's Greatsword | Banished Knight's Greatsword | exact | yes |
 | Stormcaller | weapon | Zephyr Blades | Zephyr Blades | exact | yes |
 | Stormcaller | weapon | Gargoyle's Greatsword/Halberd | Gargoyle's Greatsword, Gargoyle's Halberd | **split: exact, exact** | yes |
@@ -298,7 +298,7 @@ spelling difference between the note and the item's real name.
 | Nox Oracle | weapon | Sword of Darkness | Sword of Darkness | exact | no |
 | Nox Oracle | weapon | Sword of Night | Sword of Night | exact | yes |
 | Nox Oracle | weapon | Claws of Night | Claws of Night | exact | yes |
-| Nox Oracle | weapon | Lusat's Night Staff | Lusat's Night Staff | exact | no |
+| Nox Oracle | weapon | Lusat's Night Staff | Lusat's Night Staff | exact | yes |
 | Nox Oracle | weapon | Fingerslayer Blade | Fingerslayer Blade | exact | no |
 | Nox Oracle | weapon | Quicksilver Fragment | Quicksilver Fragment | exact | yes |
 | Necromancer | rune | Shimmering Rune of Necromancy | Shimmering Rune of Necromancy | exact | yes |
@@ -313,13 +313,13 @@ spelling difference between the note and the item's real name.
 | Necromancer | armor | Gravebird's Blackquill Armor | Gravebird's Blackquill Armor | exact | yes |
 | Necromancer | weapon | Death's Poker | Death's Poker | exact | yes |
 | Necromancer | weapon | Helphen's Steeple | Helphen's Steeple | exact | yes |
-| Necromancer | weapon | Mantis Blade | Mantis Blade | exact | no |
+| Necromancer | weapon | Mantis Blade | Mantis Blade | exact | yes |
 | Necromancer | weapon | Eclipse Shotel | Eclipse Shotel | exact | yes |
 | Necromancer | weapon | Deathrite Dagger | Deathrite Dagger | exact | yes |
 | Necromancer | weapon | Sacrificial Axe | Sacrificial Axe | exact | no |
 | Necromancer | weapon | Rosus Axe | Rosus' Axe | **spelling** | yes |
-| Necromancer | weapon | Death Ritual Spear | Death Ritual Spear | exact | yes |
-| Necromancer | weapon | Rosus' Harvester | Rosus' Harvester | exact | yes |
+| Necromancer | weapon | Death Ritual Spear | Death Ritual Spear | exact | no |
+| Necromancer | weapon | Rosus' Harvester | Rosus' Harvester | exact | no |
 | Necromancer | weapon | Rancor Touch | Rancor Touch | exact | yes |
 | Necromancer | weapon | Ghostflame Torch | Ghostflame Torch | exact | yes |
 | Necromancer | weapon | Prince of Death's Staff & Family Heads | Family Heads, Prince of Death's Staff | **split: exact, exact** | yes |
@@ -331,45 +331,45 @@ spelling difference between the note and the item's real name.
 | Frost Witch | rune | Shadow Rune of Frost | Shadow Rune of Frost | exact | yes |
 | Frost Witch | armor | Zamor Set | Zamor Armor, Zamor Bracelets, Zamor Legwraps, Zamor Mask | set | yes |
 | Frost Witch | armor | Snow Witch Set | Snow Witch Gloves, Snow Witch Hat, Snow Witch Robe, Snow Witch Skirt | set | yes |
-| Frost Witch | armor | Blaidd's Set | Black Wolf Mask, Blaidd's Armor, Blaidd's Gauntlets, Blaidd's Greaves | set | no |
+| Frost Witch | armor | Blaidd's Set | Black Wolf Mask, Blaidd's Armor, Blaidd's Gauntlets, Blaidd's Greaves | set | yes |
 | Frost Witch | weapon | Dark Moon Greatsword | Dark Moon Greatsword | exact | yes |
 | Frost Witch | weapon | Frozen Needle | Frozen Needle | exact | yes |
 | Frost Witch | weapon | Zamor Curved Sword | Zamor Curved Sword | exact | yes |
 | Frost Witch | weapon | Frozen Twinshards | Frozen Twinshards | exact | yes |
 | Frost Witch | weapon | Zamor Star Mace | Zamor Star Mace | exact | yes |
 | Frost Witch | weapon | Icerind Hatchet | Icerind Hatchet | exact | yes |
-| Frost Witch | weapon | Royal Greatsword | Royal Greatsword | exact | no |
+| Frost Witch | weapon | Royal Greatsword | Royal Greatsword | exact | yes |
 | Frost Witch | weapon | Rimeheart | Rimeheart | exact | no |
 | Frost Witch | weapon | Einar's Hammer | Einar's Hammer | exact | yes |
 | Frost Witch | weapon | Snow Witch Staff | Snow Witch Staff | exact | yes |
 | Frost Witch | weapon | Ice Crest Shield | Ice Crest Shield | exact | yes |
 | Frost Witch | weapon | Crescent Moons | Crescent Moons | exact | yes |
-| Aberrant Heretic | rune | Shimmering Rune of Thorns | Shimmering Rune of Thorns | exact | no |
+| Aberrant Heretic | rune | Shimmering Rune of Thorns | Shimmering Rune of Thorns | exact | yes |
 | Aberrant Heretic | rune | Glowing Rune of Thorns | Glowing Rune of Thorns | exact | yes |
 | Aberrant Heretic | rune | Shining Rune of Thorns | Shining Rune of Thorns | exact | yes |
 | Aberrant Heretic | rune | Radiant Rune of Thorns | Radiant Rune of Thorns | exact | yes |
 | Aberrant Heretic | rune | Shadow Rune of Thorns | Shadow Rune of Thorns | exact | yes |
 | Aberrant Heretic | armor | Alberich's Set | Alberich's Bracers, Alberich's Pointed Hat, Alberich's Robe, Alberich's Trousers | set | yes |
-| Aberrant Heretic | armor | Bloodhound Knight Set | Bloodhound Knight Armor, Bloodhound Knight Gauntlets, Bloodhound Knight Greaves, Bloodhound Knight Helm | set | no |
+| Aberrant Heretic | armor | Bloodhound Knight Set | Bloodhound Knight Armor, Bloodhound Knight Gauntlets, Bloodhound Knight Greaves, Bloodhound Knight Helm | set | yes |
 | Aberrant Heretic | armor | Briar Set | Briar Armor, Briar Gauntlets, Briar Greaves, Briar Helm | set | yes |
 | Aberrant Heretic | weapon | Regalia of Eochaid | Regalia of Eochaid | exact | yes |
 | Aberrant Heretic | weapon | Marais Executioner's Sword | Marais Executioner's Sword | exact | yes |
 | Aberrant Heretic | weapon | Thorn of the Guilty | Thorn of the Guilty | exact | yes |
 | Aberrant Heretic | weapon | Crimson Briar-Bough | Crimson Briar-Bough | exact | no |
 | Aberrant Heretic | weapon | Hoslow's Petal Whip | Hoslow's Petal Whip | exact | yes |
-| Aberrant Heretic | weapon | Bloodhound Claws | Bloodhound Claws | exact | no |
+| Aberrant Heretic | weapon | Bloodhound Claws | Bloodhound Claws | exact | yes |
 | Aberrant Heretic | weapon | Shield of the Guilty | Shield of the Guilty | exact | yes |
 | Aberrant Heretic | weapon | Staff of the Guilty | Staff of the Guilty | exact | yes |
 | Aberrant Heretic | weapon | Crucifix of Eochaid | Crucifix of Eochaid | exact | yes |
 | Flame Prophet | rune | Shimmering Rune of Fell Flame | Shimmering Rune of Fell Flame | exact | yes |
-| Flame Prophet | rune | Glowing Rune of Fell Flame | Glowing Rune of Fell Flame | exact | no |
+| Flame Prophet | rune | Glowing Rune of Fell Flame | Glowing Rune of Fell Flame | exact | yes |
 | Flame Prophet | rune | Shining Rune of Fell Flame | Shining Rune of Fell Flame | exact | yes |
 | Flame Prophet | rune | Radiant Rune of Fell Flame | Radiant Rune of Fell Flame | exact | yes |
 | Flame Prophet | rune | Shadow Rune of Fell Flame | Shadow Rune of Fell Flame | exact | yes |
 | Flame Prophet | armor | Fire Monk Set | Fire Monk Armor, Fire Monk Gauntlets, Fire Monk Greaves, Fire Monk Hood | set | yes |
 | Flame Prophet | armor | Fire Prelate Set | Fire Prelate Armor, Fire Prelate Gauntlets, Fire Prelate Greaves, Fire Prelate Helm | set | yes |
 | Flame Prophet | armor | Fire Knight Set | Fire Knight Armor, Fire Knight Gauntlets, Fire Knight Greaves, Fire Knight Helm | set | yes |
-| Flame Prophet | armor | Salza's Hood | Salza's Hood | exact | no |
+| Flame Prophet | armor | Salza's Hood | Salza's Hood | exact | yes |
 | Flame Prophet | armor | Deathmask Helm | Death Mask Helm | **spelling** | yes |
 | Flame Prophet | armor | Winged Serpent Helm | Winged Serpent Helm | exact | yes |
 | Flame Prophet | armor | Messmer's Set | Messmer's Armor, Messmer's Gauntlets, Messmer's Greaves, Messmer's Helm | set | no |
@@ -380,11 +380,11 @@ spelling difference between the note and the item's real name.
 | Flame Prophet | weapon | Axe of Fell Prophecy | Axe of Fell Prophecy | exact | yes |
 | Flame Prophet | weapon | Giant's Red Braid | Giant's Red Braid | exact | yes |
 | Flame Prophet | weapon | Grafted Dragon | Grafted Dragon | exact | no |
-| Flame Prophet | weapon | Prelate's Inferno Crozier | Prelate's Inferno Crozier | exact | no |
+| Flame Prophet | weapon | Prelate's Inferno Crozier | Prelate's Inferno Crozier | exact | yes |
 | Flame Prophet | weapon | Smoldering Shield | Smoldering Shield | exact | yes |
 | Flame Prophet | weapon | Monk's Flameblade | Monk's Flameblade | exact | yes |
 | Flame Prophet | weapon | Furnace Fists | Furnace Fists | exact | yes |
-| Flame Prophet | weapon | Giant's Seal | Giant's Seal | exact | no |
+| Flame Prophet | weapon | Giant's Seal | Giant's Seal | exact | yes |
 | Flame Prophet | weapon | Glaive of the Crusade | Glaive of the Crusade | exact | yes |
 | Fundamentalist | rune | Shimmering Rune of Order | Shimmering Rune of Order | exact | yes |
 | Fundamentalist | rune | Glowing Rune of Order | Glowing Rune of Order | exact | yes |
@@ -433,13 +433,13 @@ spelling difference between the note and the item's real name.
 | Bestial Devout | weapon | Beastclaw Greathammer | Beastclaw Greathammer | exact | yes |
 | Bestial Devout | weapon | Beastman's Cleaver | Beastman's Cleaver | exact | yes |
 | Bestial Devout | weapon | Earthbreaker Seal | Earthbreaker Seal | exact | yes |
-| Bestial Devout | weapon | Aegis of Hadea | Aegis of Hadea | exact | no |
+| Bestial Devout | weapon | Aegis of Hadea | Aegis of Hadea | exact | yes |
 | Bestial Devout | weapon | Greatsword of Damnation | Greatsword of Damnation | exact | no |
 | Bestial Devout | weapon | Halberd of Archea | Halberd of Archea | exact | yes |
 | Bestial Devout | weapon | Devonia's Longbow | Devonia's Longbow | exact | yes |
 | Dragon Cultist | rune | Shimmering Rune of Lightning | Shimmering Rune of Lightning | exact | yes |
 | Dragon Cultist | rune | Glowing Rune of Lightning | Glowing Rune of Lightning | exact | yes |
-| Dragon Cultist | rune | Shining Rune of Lightning | Shining Rune of Lightning | exact | no |
+| Dragon Cultist | rune | Shining Rune of Lightning | Shining Rune of Lightning | exact | yes |
 | Dragon Cultist | rune | Radiant Rune of Lightning | Radiant Rune of Lightning | exact | yes |
 | Dragon Cultist | rune | Shadow Rune of Lightning | Shadow Rune of Lightning | exact | yes |
 | Dragon Cultist | armor | Leyndell Knight Set | Leyndell Knight Armor, Leyndell Knight Gauntlets, Leyndell Knight Greaves, Leyndell Knight Helm | set | yes |
@@ -469,7 +469,7 @@ spelling difference between the note and the item's real name.
 | Godskin Celebrant | weapon | Celebrant's Sickle | Celebrant's Sickle | exact | yes |
 | Godskin Celebrant | weapon | Godslayer's Greatsword | Godslayer's Greatsword | exact | yes |
 | Godskin Celebrant | weapon | Maliketh's Black Blade | Maliketh's Black Blade | exact | no |
-| Godskin Celebrant | weapon | Black Knife | Black Knife | exact | no |
+| Godskin Celebrant | weapon | Black Knife | Black Knife | exact | yes |
 | Godskin Celebrant | weapon | Godskin Stitcher | Godskin Stitcher | exact | yes |
 | Godskin Celebrant | weapon | Godskin Peeler | Godskin Peeler | exact | yes |
 | Godskin Celebrant | weapon | Celebrant's Skull | Celebrant's Skull | exact | yes |
@@ -489,7 +489,7 @@ spelling difference between the note and the item's real name.
 | Frenzied Zealot | armor | Midra's Gaze | Midra's Gaze | exact | yes |
 | Frenzied Zealot | weapon | Ivory Sickle | Ivory Sickle | exact | yes |
 | Frenzied Zealot | weapon | Nomad's Kilij | Nomad's Kilij | exact | yes |
-| Frenzied Zealot | weapon | Three Finger Blade | Three Finger Blade | exact | no |
+| Frenzied Zealot | weapon | Three Finger Blade | Three Finger Blade | exact | yes |
 | Frenzied Zealot | weapon | Vyke's War Spear | Vyke's War Spear | exact | no |
 | Frenzied Zealot | weapon | Blade of Distant Light | Blade of Distant Light | exact | yes |
 | Frenzied Zealot | weapon | Frenzied Flame Seal | Frenzied Flame Seal | exact | yes |
@@ -532,11 +532,11 @@ spelling difference between the note and the item's real name.
 | Servant of Rot | weapon | Blade of Scarlet Bloom | Blade of Scarlet Bloom | exact | yes |
 | Servant of Rot | weapon | Serpentbone Blade | Serpentbone Blade | exact | no |
 | Servant of Rot | weapon | Hand of Malenia | Hand of Malenia | exact | no |
-| Servant of Rot | weapon | Rotten Battle Hammer | Rotten Battle Hammer | exact | no |
+| Servant of Rot | weapon | Rotten Battle Hammer | Rotten Battle Hammer | exact | yes |
 | Servant of Rot | weapon | Rotten Crystal Spear | Rotten Crystal Spear | exact | yes |
-| Servant of Rot | weapon | Rotten Greataxe | Rotten Greataxe | exact | no |
+| Servant of Rot | weapon | Rotten Greataxe | Rotten Greataxe | exact | yes |
 | Servant of Rot | weapon | Greatstaff of Decay | Greatstaff of Decay | exact | yes |
-| Servant of Rot | weapon | Scarlet Triscythe | Scarlet Triscythe | exact | no |
+| Servant of Rot | weapon | Scarlet Triscythe | Scarlet Triscythe | exact | yes |
 | Servant of Rot | weapon | Scorpion Kite Shield | Scorpion Kite Shield | exact | yes |
 | Servant of Rot | weapon | Seal of Rot | Seal of Rot | exact | yes |
 | Mystic | rune | Shimmering Rune of Ancestors | Shimmering Rune of Ancestors | exact | yes |
@@ -562,7 +562,7 @@ spelling difference between the note and the item's real name.
 | Mystic | weapon | Goras' Claws | Goras' Claw | **spelling** | yes |
 | Mystic | weapon | Velvet Sword of St. Trina | Velvet Sword of St. Trina | exact | yes |
 | Perfumer | armor | Depraved Perfumer Set | Depraved Perfumer Gloves, Depraved Perfumer Headscarf, Depraved Perfumer Robe, Depraved Perfumer Trousers | set | yes |
-| Perfumer | armor | Omenkiller Set | Omenkiller Boots, Omenkiller Long Gloves, Omenkiller Robe, Omensmirk Mask | set | no |
+| Perfumer | armor | Omenkiller Set | Omenkiller Boots, Omenkiller Long Gloves, Omenkiller Robe, Omensmirk Mask | set | yes |
 | Perfumer | armor | Perfumer Set | Perfumer Gloves, Perfumer Hood, Perfumer Robe, Perfumer Sarong | set | yes |
 | Perfumer | weapon | Sword of Milos | Sword of Milos | exact | yes |
 | Perfumer | weapon | Ripple Blade | Ripple Blade | exact | no |
