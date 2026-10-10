@@ -8,36 +8,17 @@ from param import rows
 
 MOD = common.MOD.replace("\\", "/")
 MSB_DIR = MOD + "/map/MapStudio/"
-CAT = {"rune": 1, "weapon": 2, "armor": 3}
 
 
-def fmg_names(prefix):
-    out = defaultdict(list)
-    for f in sorted(glob.glob(f"{common.ITEM_DIR}/{prefix}*.fmg.json")):
-        for k, v in json.load(open(f, encoding="utf-8")).items():
-            if v and v.strip() and not v.startswith("[ERROR]"):
-                out[v.strip()].append(int(k))
-    return out
+def resolve_ids(kind, name, siblings=()):
+    """Note entry -> [(item name, item id, ItemLot category)] (see matching.py)."""
+    from matching import resolve
+    return resolve(kind, name, siblings).items
 
 
-NAMES = {"rune": fmg_names("GoodsName"), "weapon": fmg_names("WeaponName"), "armor": fmg_names("ProtectorName")}
-
-
-def resolve_ids(kind, name):
-    """Note entry name -> list of (item name, id)."""
-    table = NAMES[kind]
-    if name in table:
-        return [(name, i) for i in table[name]]
-    if kind == "armor":
-        m = re.match(r"Set of (.+)$", name)
-        if m:
-            pat = lambda n: n.endswith(" of " + m.group(1))
-        else:
-            base = re.sub(r"\s+Set$", "", name)
-            pat = lambda n: n.startswith(base + " ")
-        hits = [(n, i) for n, ids in table.items() if pat(n) and "(Altered)" not in n for i in ids]
-        return hits
-    return []
+def note_entries(c):
+    """(kind, name, location text, sibling names) for every entry of a class's notes."""
+    return [("rune", n, l, ()) for n, l in c["runes"]] +            [("armor", n, l, tuple(o for o, _ in g if o != n)) for g in c["armor"] for n, l in g] +            [("weapon", n, l, ()) for n, l in c["weapons"]]
 
 
 # ---- item lots -------------------------------------------------------------
@@ -196,9 +177,9 @@ def boss_for_text(loc):
 
 
 # ---- resolution -------------------------------------------------------------
-def locate(kind, item_id, loc_text):
+def locate(cat, item_id, loc_text):
     results = []
-    for param, own_lot, flag in LOTS.get((CAT[kind], item_id), []):
+    for param, own_lot, flag in LOTS.get((cat, item_id), []):
         # A drop can be the tail of a chain: the game also awards rows id+1, id+2...
         # with the head. Try the lot itself, then each consecutive row below it.
         chain = [own_lot]
@@ -259,13 +240,12 @@ def locate_all(classes, only=None):
     for c in classes:
         if only and c["id"] != only:
             continue
-        entries = [("rune", n, l) for n, l in c["runes"]] +                   [("armor", n, l) for g in c["armor"] for n, l in g] +                   [("weapon", n, l) for n, l in c["weapons"]]
-        for kind, name, loc in entries:
-            ids = resolve_ids(kind, name)
+        for kind, name, loc, siblings in note_entries(c):
+            ids = resolve_ids(kind, name, siblings)
             res = []
-            for piece, i in ids:
-                for r in locate(kind, i, loc):
-                    r["piece"] = piece
+            for piece, i, cat in ids:
+                for r in locate(cat, i, loc):
+                    r.update(piece=piece, item_id=i, cat=cat)
                     res.append(r)
             how = "unresolved-name" if not ids else                 ("exact" if any(r["how"] in ("pickup", "event", "defeat") for r in res) else
                  "boss-marker" if any(r["how"] == "boss-marker" for r in res) else "no-position")
