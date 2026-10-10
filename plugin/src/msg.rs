@@ -1,19 +1,36 @@
-//! Marker labels: add our own entries to the game's PlaceName text (FMG) in memory.
+//! Text the game shows, extended in memory:
+//! - marker labels: our own entries in the PlaceName text;
+//! - item descriptions: a "Class notes: ..." line at the end of every item a class note lists.
 //!
-//! The PlaceName FMG the game loaded is rebuilt into a larger buffer with our labels added and
-//! its MsgRepository slot is pointed at the copy. Same approach as Map For Goblins - DLL
+//! A loaded text file (FMG) is rebuilt into a larger buffer with our entries and its
+//! MsgRepository slot is pointed at the copy. Same approach as Map For Goblins - DLL
 //! (goblin_messages.cpp: patch_fmg_in_memory), including allocating from the engine allocator
-//! that owns the original buffer so the engine can free ours.
+//! that owns the original buffer so the engine can free ours. A watcher re-applies a patch if the
+//! game ever loads that text again.
+//!
+//! Each text family exists in three layers, each in its own slot (its file id in item.msgbnd):
+//! base, _dlc01 and _dlc02. The game looks an id up in the highest layer first, so a description
+//! is changed in the highest layer that has it.
 
 use crate::inject::alloc_like;
 use crate::log;
 use crate::scan;
+use std::collections::HashMap;
 use std::time::Duration;
 
 /// `mov rdi, [rip+X]` loading the MsgRepositoryImp singleton.
 const MSG_REPOSITORY_AOB: &str = "48 8B 3D ?? ?? ?? ?? 44 0F B6 30 48 85 FF 75";
-/// PlaceName's index among the MsgRepository's text files (its id in item.msgbnd).
+/// PlaceName's slot (its file id in item.msgbnd).
 const PLACE_NAME_SLOT: usize = 19;
+/// Description slots per ItemLot category, lowest layer first: base, _dlc01, _dlc02.
+const CAPTION_SLOTS: [(u8, [usize; 3]); 4] = [
+    (1, [24, 321, 421]), // GoodsCaption
+    (2, [25, 312, 412]), // WeaponCaption
+    (3, [26, 315, 415]), // ProtectorCaption
+    (4, [27, 318, 418]), // AccessoryCaption
+];
+/// Starts the line added to item descriptions.
+const CLASS_LINE: &str = "Class notes: ";
 /// Our label ids: far above anything the game or Convergence uses.
 pub const FIRST_TEXT_ID: i32 = 1_850_000_000;
 
@@ -24,8 +41,8 @@ unsafe fn wr<T>(p: *mut u8, v: T) {
     std::ptr::write_unaligned(p as *mut T, v)
 }
 
-/// The MsgRepository slot holding the PlaceName FMG pointer, once the game has loaded it.
-fn place_name_slot() -> Result<*mut *mut u8, String> {
+/// The MsgRepository's slot array and its length, once the game has loaded its text.
+fn repository() -> Result<(*mut *mut u8, usize), String> {
     let hit = *scan::find_all(MSG_REPOSITORY_AOB).first().ok_or("text repository pattern not found")?;
     let repo_slot = unsafe { scan::rip_relative(hit, 3, 7) } as *const *const u8;
     for _ in 0..600 {
@@ -37,7 +54,7 @@ fn place_name_slot() -> Result<*mut *mut u8, String> {
                 if !files.is_null() && count > PLACE_NAME_SLOT as i32 {
                     let sub = *files;
                     if !sub.is_null() && !(*sub.add(PLACE_NAME_SLOT)).is_null() {
-                        return Ok(sub.add(PLACE_NAME_SLOT));
+                        return Ok((sub, count as usize));
                     }
                 }
             }
@@ -45,6 +62,18 @@ fn place_name_slot() -> Result<*mut *mut u8, String> {
         std::thread::sleep(Duration::from_millis(500));
     }
     Err("the game's text was not loaded after 5 minutes".into())
+}
+
+/// Slot `index` of the repository, if it exists and holds a loaded text file.
+fn loaded_slot(repo: (*mut *mut u8, usize), index: usize) -> Option<*mut *mut u8> {
+    let (sub, count) = repo;
+    if index >= count {
+        return None;
+    }
+    let slot = unsafe { sub.add(index) };
+    let fmg = unsafe { *slot };
+    // A plausible FMG header: version 2.
+    (!fmg.is_null() && unsafe { rd::<u32>(fmg) } == 0x0002_0000).then_some(slot)
 }
 
 /// Every (id, text) in an in-memory FMG (version 2 layout, as loaded by the game).
@@ -113,20 +142,19 @@ unsafe fn build_fmg(original: *const u8, ours: &[(i32, Vec<u16>)]) -> Result<*mu
     Ok(f)
 }
 
-/// Add `labels` to PlaceName as ids FIRST_TEXT_ID, FIRST_TEXT_ID + 1, ...
-/// On success the ids can be used as marker text; a watcher re-applies them if the game ever
-/// replaces the PlaceName text (and calls `on_lost` if it can't).
-pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> Result<(), String> {
-    let ours: Vec<(i32, Vec<u16>)> = labels
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (FIRST_TEXT_ID + i as i32, s.encode_utf16().collect()))
-        .collect();
-    let slot = place_name_slot()?;
-    let patched = unsafe { build_fmg(*slot, &ours)? };
-    unsafe { *slot = patched };
-    log!("Added {} labels to the map's place names", ours.len());
+/// Our entries for a loaded text file, computed from that file (so a re-load is patched afresh).
+type Entries = Box<dyn Fn(*const u8) -> Vec<(i32, Vec<u16>)> + Send>;
 
+/// Point `slot` at a copy of its text file with `entries` added, and keep it that way: a watcher
+/// re-applies the patch if the game ever loads that text again (and calls `on_lost` if it can't).
+fn patch_and_watch(
+    slot: *mut *mut u8,
+    what: &'static str,
+    entries: Entries,
+    on_lost: impl Fn() + Send + 'static,
+) -> Result<(), String> {
+    let patched = unsafe { build_fmg(*slot, &entries(*slot))? };
+    unsafe { *slot = patched };
     let (slot, mut current) = (slot as usize, patched as usize);
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(5));
@@ -134,18 +162,88 @@ pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> R
         if now == current || now == 0 {
             continue;
         }
-        log!("The game replaced its place-name text; adding our labels again");
-        match unsafe { build_fmg(now as *const u8, &ours) } {
+        log!("The game reloaded its {} text; adding ours again", what);
+        match unsafe { build_fmg(now as *const u8, &entries(now as *const u8)) } {
             Ok(p) => {
                 unsafe { *(slot as *mut usize) = p as usize };
                 current = p as usize;
             }
             Err(e) => {
-                log!("Could not re-add labels ({}); markers fall back to place names", e);
+                log!("Could not re-add our {} text ({})", what, e);
                 on_lost();
                 return;
             }
         }
     });
     Ok(())
+}
+
+/// Add `labels` to PlaceName as ids FIRST_TEXT_ID, FIRST_TEXT_ID + 1, ...
+/// On success the ids can be used as marker text; `on_lost` runs if they are lost later.
+pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> Result<(), String> {
+    let ours: Vec<(i32, Vec<u16>)> = labels
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (FIRST_TEXT_ID + i as i32, s.encode_utf16().collect()))
+        .collect();
+    let repo = repository()?;
+    let slot = loaded_slot(repo, PLACE_NAME_SLOT).ok_or("place-name text not loaded")?;
+    let count = ours.len();
+    patch_and_watch(slot, "place-name", Box::new(move |_| ours.clone()), on_lost)?;
+    log!("Added {} labels to the map's place names", count);
+    Ok(())
+}
+
+/// End the description of every item in `captions` (ItemLot category, item id, class names) with
+/// "Class notes: <classes>". Returns how many descriptions were extended.
+pub fn add_class_lines(captions: &'static [(u8, u32, &'static str)]) -> Result<usize, String> {
+    let repo = repository()?;
+    let mut done = 0;
+    for (category, slots) in CAPTION_SLOTS {
+        let wanted: HashMap<i32, &str> = captions
+            .iter()
+            .filter(|(c, _, _)| *c == category)
+            .map(|&(_, id, classes)| (id as i32, classes))
+            .collect();
+        if wanted.is_empty() {
+            continue;
+        }
+        // Each id goes to the highest layer that has a description for it.
+        let layers: Vec<Option<*mut *mut u8>> = slots.iter().map(|&s| loaded_slot(repo, s)).collect();
+        let mut owner: HashMap<i32, usize> = HashMap::new();
+        for (l, slot) in layers.iter().enumerate() {
+            if let Some(slot) = slot {
+                for (id, _) in unsafe { read_fmg(**slot) } {
+                    if wanted.contains_key(&id) {
+                        owner.insert(id, l);
+                    }
+                }
+            }
+        }
+        for (l, slot) in layers.iter().enumerate() {
+            let Some(slot) = *slot else { continue };
+            let mine: HashMap<i32, String> = owner
+                .iter()
+                .filter(|(_, &o)| o == l)
+                .map(|(&id, _)| (id, format!("\n\n{}{}", CLASS_LINE, wanted[&id])))
+                .collect();
+            if mine.is_empty() {
+                continue;
+            }
+            let n = mine.len();
+            let entries: Entries = Box::new(move |fmg| {
+                unsafe { read_fmg(fmg) }
+                    .into_iter()
+                    .filter_map(|(id, mut text)| {
+                        let line = mine.get(&id)?;
+                        text.extend(line.encode_utf16());
+                        Some((id, text))
+                    })
+                    .collect()
+            });
+            patch_and_watch(slot, "item description", entries, || {})?;
+            done += n;
+        }
+    }
+    Ok(done)
 }

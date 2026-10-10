@@ -2,7 +2,8 @@
 
 Adds world-map markers for the items listed in The Convergence's class notes
 ("Note: Path of the …" / "Note: Weapons for …"): spell runes, armor and weapons, labelled with the
-item name and its location. A note's markers show while that note is in your inventory; a
+item name and its location. Item descriptions get a "Class notes: …" line naming the classes
+whose notes list the item. A note's markers show while that note is in your inventory; a
 marker hides once you've picked its item up there, or have it in your inventory or storage chest.
 Markers use our own icons (sword = weapon, helm = armor, rune = spell rune).
 A DLL loaded by me3 — Convergence's files and the game files are not modified (apart from one

@@ -86,4 +86,9 @@ fn run() {
         }
         Err(e) => log!("Markers NOT added: {}", e),
     }
+
+    match msg::add_class_lines(generated::CAPTIONS) {
+        Ok(n) => log!("Added the class line to {} item descriptions", n),
+        Err(e) => log!("Item descriptions NOT extended: {}", e),
+    }
 }
