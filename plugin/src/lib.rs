@@ -3,7 +3,7 @@
 //!
 //! Markers (generated from Convergence's files, see tools/generate.py) are added to
 //! WorldMapPointParam at startup, labelled through the PlaceName text, and shown only while you
-//! own the class note that lists them. Nothing on disk is modified. The approach for growing the
+//! own the class note that lists them and haven't obtained the item yet. Nothing on disk is modified. The approach for growing the
 //! marker table and text in memory follows Map For Goblins - DLL by VirusAlex (MIT):
 //! https://github.com/VirusAlex/ERR-MapForGoblins-DLL
 
@@ -69,9 +69,13 @@ fn run() {
     match inject::inject(add) {
         Ok(rows) => {
             log!("Done: {} of {} marker(s) added to the world map", rows.iter().flatten().count(), markers.len());
-            let by_note = markers.iter().zip(&rows).filter_map(|(m, r)| r.map(|r| (m.note, r))).collect();
+            let watched = markers
+                .iter()
+                .zip(&rows)
+                .filter_map(|(m, r)| r.map(|row| classes::Watched { note: m.note, items: m.items, row }))
+                .collect();
             let _ = ROWS.set(rows);
-            classes::watch(by_note);
+            classes::watch(watched);
         }
         Err(e) => log!("Markers NOT added: {}", e),
     }

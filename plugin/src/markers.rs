@@ -21,14 +21,23 @@ pub struct Note {
     pub flags: &'static [u32],
 }
 
+/// An item a marker points to. It counts as obtained once its pickup `flag` is on (0 = none
+/// known) or it is in your inventory or storage chest.
+pub struct Item {
+    /// ItemLot category: 1 = goods, 2 = weapon, 3 = armor, 4 = talisman, 5 = ash of war.
+    pub category: u8,
+    pub id: u32,
+    pub flag: u32,
+}
+
 /// One generated marker (see tools/generate.py).
 pub struct GenMarker {
     /// Goods id of the class note that lists this item; the marker shows while you own it.
     pub note: u32,
     /// Item category: 1 = goods (spell runes), 2 = weapon, 3 = armor.
     pub kind: u8,
-    #[allow(dead_code)]
-    pub item_id: i32,
+    /// The note's item(s) found at this spot; the marker hides once all are obtained.
+    pub items: &'static [Item],
     /// Map block the row id must encode: AABB for dungeon map mAA_BB, PPGGZZ for world tiles.
     /// The row id is block * 100 + a free two-digit number.
     pub block: i32,
@@ -42,8 +51,6 @@ pub struct GenMarker {
     pub disp_mask: u8,
     /// PlaceName text shown on hover (-1 = none).
     pub text_id: i32,
-    /// Event flag that is set once the item is picked up; the marker hides then (0 = never).
-    pub hide_flag: u32,
     /// Map label: the entry's name as written in the class note.
     pub name: &'static str,
     /// For the log.
@@ -55,8 +62,6 @@ pub struct Line {
     pub text_id: i32,
     /// Which text list the id refers to: 0 = PlaceName, 1 = NpcName, others unknown yet.
     pub text_type: u8,
-    /// Line is hidden once this flag is on (0 = never).
-    pub hide_flag: u32,
 }
 
 pub struct Row {
@@ -93,7 +98,6 @@ impl Row {
             match self.lines.get(k) {
                 Some(l) => {
                     put(&mut r, at, &l.text_id.to_le_bytes()); // textIdN
-                    put(&mut r, at + 8, &l.hide_flag.to_le_bytes()); // textDisableFlagIdN
                     r[0x90 + k] = l.text_type; // textTypeN
                 }
                 None => put(&mut r, at, &(-1i32).to_le_bytes()),
@@ -127,9 +131,10 @@ impl GenMarker {
     /// The marker's row: line 1 = the place, line 2 = `label` (our "<class> <type> - <item>" text id),
     /// or just the place when there's no label.
     pub fn row(&self, label: Option<i32>) -> Row {
-        let line = |text_id| Line { text_id, text_type: 0, hide_flag: self.hide_flag };
+        let line = |text_id| Line { text_id, text_type: 0 };
         Row {
-            // Hidden until the class-note check has seen that you own the note.
+            // Hidden until the visibility check (classes.rs) has seen that you own the note and
+            // haven't obtained the item(s) yet.
             event_flag: ALWAYS_OFF_FLAG,
             area: self.area,
             grid_x: self.grid_x,
@@ -138,8 +143,6 @@ impl GenMarker {
             y: self.y,
             z: self.z,
             disp_mask: self.disp_mask,
-            // The engine hides a marker once all its text lines are hidden, so hiding the
-            // lines on pickup removes the marker.
             lines: match label {
                 Some(id) if self.text_id >= 0 => vec![line(self.text_id), line(id)],
                 Some(id) => vec![line(id)],
