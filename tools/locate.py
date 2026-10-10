@@ -68,11 +68,12 @@ def msb(mapname):
         pos = struct.unpack_from("<3f", d, o + 0x20)
         ent_off = struct.unpack_from("<q", d, o + 0x60)[0]
         ent = struct.unpack_from("<i", d, o + ent_off)[0] if ent_off else 0
-        npc = 0
-        if typ == 2:  # enemy: its NpcParam id sits at +0x0C of the part's type data
+        npc = talk = 0
+        if typ == 2:  # enemy: NpcParam id at +0x0C of the part's type data, talk script id at +0x10
             td = struct.unpack_from("<q", d, o + 0x68)[0]
-            npc = struct.unpack_from("<i", d, o + td + 0x0C)[0] if td else 0
-        part = {"name": wstr(o + no), "type": typ, "pos": pos, "entity": ent, "npc": npc}
+            if td:
+                npc, talk = struct.unpack_from("<ii", d, o + td + 0x0C)
+        part = {"name": wstr(o + no), "type": typ, "pos": pos, "entity": ent, "npc": npc, "talk": talk}
         parts.append(part)
         if ent > 0:
             by_entity[ent] = part
@@ -93,25 +94,26 @@ ALL_MAPS = sorted(os.path.basename(f)[:-8] for f in glob.glob(MSB_DIR + "*.msb.d
 
 
 _world_index = None
+INDEX_VERSION = 2   # bump when the index gains fields
 
 
 def world_index():
-    """Across ALL map files: placed enemies by NpcParam id, and pickups by item lot.
-    {"enemies": {npc: [(map, part)]}, "pickups": {lot: [(map, part)]}}. Cached in cache/ and
-    rebuilt when the map files change."""
+    """Across ALL map files: placed enemies by NpcParam id, pickups by item lot and NPCs by talk
+    script id. {"enemies": {npc: [(map, part)]}, "pickups": {lot: [...]}, "talks": {talk: [...]}}.
+    Cached in cache/ and rebuilt when the map files change."""
     global _world_index
     if _world_index is not None:
         return _world_index
     files = glob.glob(MSB_DIR + "*.msb.dcx")
-    stamp = [len(files), max(int(os.path.getmtime(f)) for f in files)]
+    stamp = [len(files), max(int(os.path.getmtime(f)) for f in files), INDEX_VERSION]
     path = os.path.join(common.CACHE, "world_index.json")
     if os.path.exists(path):
         data = json.load(open(path, encoding="utf-8"))
         if data.get("stamp") == stamp:
-            _world_index = {k: {int(i): v for i, v in data[k].items()} for k in ("enemies", "pickups")}
+            _world_index = {k: {int(i): v for i, v in data[k].items()} for k in ("enemies", "pickups", "talks")}
             return _world_index
     print("Indexing enemies and pickups in all map files (once) ...")
-    enemies, pickups = defaultdict(list), defaultdict(list)
+    enemies, pickups, talks = defaultdict(list), defaultdict(list), defaultdict(list)
     for m in ALL_MAPS:
         ms = msb(m)
         if not ms:
@@ -119,12 +121,15 @@ def world_index():
         for p in ms["parts"]:
             if p["npc"] > 0:
                 enemies[p["npc"]].append((m, p))
+            if p["talk"] > 0:
+                talks[p["talk"]].append((m, p))
         for lot, ps in ms["treasure"].items():
             for p in ps:
                 pickups[lot].append((m, p))
         _msb_cache.pop(m, None)  # keep memory flat
-    json.dump({"stamp": stamp, "enemies": enemies, "pickups": pickups}, open(path, "w", encoding="utf-8"))
-    _world_index = {"enemies": dict(enemies), "pickups": dict(pickups)}
+    json.dump({"stamp": stamp, "enemies": enemies, "pickups": pickups, "talks": talks},
+              open(path, "w", encoding="utf-8"))
+    _world_index = {"enemies": dict(enemies), "pickups": dict(pickups), "talks": dict(talks)}
     return _world_index
 
 
@@ -143,7 +148,7 @@ del _npc_rows
 MAX_ENEMY_SPOTS = 3
 
 # Result kinds that carry a map position.
-PLACED = ("pickup", "event", "defeat", "enemy")
+PLACED = ("pickup", "event", "defeat", "enemy", "shop-unlock", "merchant")
 
 
 def map_for_id(n):
@@ -299,6 +304,74 @@ def place_for_text(loc):
     return same_name
 
 
+# ---- shops ------------------------------------------------------------------
+# ShopLineupParam: equipId +0x00, mtrlId +0x08 (-1 = bought with runes), eventFlag_forStock +0x0C
+# (on once a limited item is sold out), eventFlag_forRelease +0x10 (the row is for sale once it's
+# on), sellQuantity +0x14 (-1 = unlimited), equipType +0x17.
+SHOP_EQUIP_TYPE = {2: 0, 3: 1, 4: 2, 1: 3, 5: 4}    # ItemLot category -> equipType
+SHOP_ROWS = []   # (row id, item category, item id, stock flag, release flag)
+_shop_rows, _ = rows(f"{common.REG_DIR}/ShopLineupParam.param")
+_cat_of = {t: c for c, t in SHOP_EQUIP_TYPE.items()}
+for _rid, _b in _shop_rows.items():
+    _eq, _, _mtrl, _stock, _release = struct.unpack_from("<iiiII", _b, 0)
+    _qty = struct.unpack_from("<h", _b, 0x14)[0]
+    if _mtrl == -1 and _b[0x17] in _cat_of:   # material trades and crafting are not shop stock
+        SHOP_ROWS.append((_rid, _cat_of[_b[0x17]], _eq, _stock if _qty > 0 else 0, _release))
+
+TALK_DIR = MOD + "/script/talk/"
+# Merchant ranges: a talk script opens its shop with the first and last row id as two
+# consecutive integer constants (bytecode 0x82 <i32> 0xA1).
+_RANGE = re.compile(rb"\x82(.{4})\xa1(?=\x82(.{4})\xa1)", re.S)   # overlapping pairs
+
+
+@functools.lru_cache(None)
+def shop_ranges():
+    """[(first row, last row, talk script id)] from Convergence's talk scripts. Only the scripts
+    Convergence ships are readable; unmodified base-game merchants are missing."""
+    from dump_fmg import bnd4
+    out = []
+    for f in glob.glob(TALK_DIR + "*.talkesdbnd.dcx"):
+        for _, name, data in bnd4(dcx(open(f, "rb").read())):
+            talk = int(re.search(r"t(\d+)\.esd", name).group(1))
+            for m in _RANGE.finditer(data):
+                a, b = struct.unpack("<i", m.group(1))[0], struct.unpack("<i", m.group(2))[0]
+                if 100000 <= a < b <= a + 100:
+                    out.append((a, b, talk))
+    return out
+
+
+# Merchants whose map isn't on the world map (Roundtable Hold) can't get a marker.
+OFF_MAP = ("m11_10_",)
+# Wandering merchants (Patches) sell the same stock in several places; more than this many is
+# a shared stock list, not a place to go.
+MAX_MERCHANT_SPOTS = 5
+
+
+def locate_shop(cat, item_id):
+    """Shop stock for this item: at the boss whose defeat puts it up for sale (Enia's
+    remembrance and armor shops), else at the merchant who sells it."""
+    results = []
+    for rid, c, eq, stock, release in SHOP_ROWS:
+        if c != cat or eq != item_id:
+            continue
+        src = flag_source(release) if release else None
+        if src:
+            m, p = src
+            results.append({"how": "shop-unlock", "map": m, "pos": p["pos"], "part": p["name"],
+                            "shop": rid, "flag": stock, "trigger": release})
+            continue
+        sellers = [mp for a, b, talk in shop_ranges() if a <= rid <= b
+                   for mp in world_index()["talks"].get(talk, []) if not mp[0].startswith(OFF_MAP)]
+        spots = {(m[:9], round(p["pos"][0]), round(p["pos"][2])) for m, p in sellers}   # m60_47_46_10 = _00
+        if 0 < len(spots) <= MAX_MERCHANT_SPOTS:
+            for m, p in sellers:
+                results.append({"how": "merchant", "map": m, "pos": p["pos"], "part": p["name"],
+                                "shop": rid, "flag": stock})
+        else:
+            results.append({"how": "shop-only", "shop": rid, "flag": stock, "sellers": len(spots)})
+    return results
+
+
 # ---- resolution -------------------------------------------------------------
 def locate(cat, item_id, loc_text):
     results = []
@@ -372,7 +445,10 @@ def locate(cat, item_id, loc_text):
         if not found:
             results.append({"how": "lot-only", "lot": lot, "flag": flag,
                             "events": [s for s, _, _ in lot_in_events(lot)][:3]})
-    # 6. the note's location text names a boss marker or landmark icon on the map
+    # 6. sold in a shop
+    if not any(r["how"] in PLACED for r in results):
+        results += locate_shop(cat, item_id)
+    # 7. the note's location text names a boss marker or landmark icon on the map
     if not any(r["how"] in PLACED for r in results):
         for r in place_for_text(loc_text):
             results.append({"how": "boss-marker" if r["boss"] else "place-name", "row": r["row"], "boss": r["name"]})

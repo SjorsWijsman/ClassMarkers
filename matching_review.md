@@ -17,8 +17,8 @@ The note's name differs from the item's real name; the item was found by the rul
 | Rogue | armor | Braided Armwraps | Braided Arm Wraps | spelling | yes |
 | Glint Sorcerer | weapon | Carian Knight Sword | Carian Knight's Sword | spelling | yes |
 | Starcaller | weapon | Starcaller's Mattock | Starcaller Mattock | spelling | yes |
-| Underworld Mage | weapon | Transcendant Talons | Transcendent Talons | typo | no |
-| Volcanist | weapon | Blaphemous Blade | Blasphemous Blade | typo | no |
+| Underworld Mage | weapon | Transcendant Talons | Transcendent Talons | typo | yes |
+| Volcanist | weapon | Blaphemous Blade | Blasphemous Blade | typo | yes |
 | Volcanist | weapon | Man-Serpent Shield | Man-Serpent's Shield | spelling | yes |
 | Stormcaller | weapon | Gargoyle's Greatsword/Halberd | Gargoyle's Greatsword, Gargoyle's Halberd | split: exact, exact | yes |
 | Stormcaller | weapon | Horned Warrior Greatsword | Horned Warrior's Greatsword | spelling | yes |
@@ -117,7 +117,7 @@ The note's name differs from the item's real name; the item was found by the rul
 | Perfumer | Omenkiller Set | 4 | Omenkiller Boots, Omenkiller Long Gloves, Omenkiller Robe, Omensmirk Mask | set |
 | Perfumer | Perfumer Set | 4 | Perfumer Gloves, Perfumer Hood, Perfumer Robe, Perfumer Sarong | set |
 
-## Not placed (71)
+## Not placed (43)
 
 Entries matched to an item but without a map position yet.
 
@@ -130,29 +130,18 @@ Entries matched to an item but without a map position yet.
 | Vanguard | armor | Night's Cavalry Helm | Night's Cavalry in Consecrated Snowfield | drop source not traced (likely an unmodified base-game event script) |
 | Vanguard | weapon | Gargoyle's Great Axe | Found after defeating Valiant Gargoyle in Altus | drop source not traced (likely an unmodified base-game event script) |
 | Berserker | armor | Freyja's Helm | Freyja's Quest | NPC quest or gift |
-| Berserker | weapon | Long Bow | Sold by Twin Maiden Husks | no drop source (shop, remembrance, crafted or quest reward) |
-| Dreadnought | armor | Bull-Goat Gauntlets | Sold by Patches | no drop source (shop, remembrance, crafted or quest reward) |
-| Dreadnought | weapon | Long Bow | Sold by Twin Maiden Husks | no drop source (shop, remembrance, crafted or quest reward) |
-| Sellsword | weapon | Foil of Caddock | Sold by Blackguard Big Boggart near Leyndell | no drop source (shop, remembrance, crafted or quest reward) |
+| Berserker | weapon | Long Bow | Sold by Twin Maiden Husks | sold in a shop that isn't on the map (Roundtable Hold) or by an untraced merchant |
+| Dreadnought | weapon | Long Bow | Sold by Twin Maiden Husks | sold in a shop that isn't on the map (Roundtable Hold) or by an untraced merchant |
 | Rogue | armor | Raptor's Black Feathers | Caelid Deathrite Bird | drop source not traced (likely an unmodified base-game event script) |
 | Rogue | armor | Blackguard's Iron Mask | Found at the end of Boggart's quest | NPC quest or gift |
-| Rogue | weapon | Foil of Caddock | Sold by Blackguard Big Boggart near Leyndell | no drop source (shop, remembrance, crafted or quest reward) |
-| Glint Sorcerer | armor | Queen of the Full Moon Set | Sold by Enia after defeating Rennala | no drop source (shop, remembrance, crafted or quest reward) |
-| Glint Sorcerer | armor | Royal Knight Set | Sold by Enia after defeating Haligtree Loretta | no drop source (shop, remembrance, crafted or quest reward) |
-| Glint Sorcerer | armor | Rellana's Set | Sold by Enia after defeating Rellana | no drop source (shop, remembrance, crafted or quest reward) |
 | Glint Sorcerer | weapon | Azur's Glintstone Staff | Found on Sorcerer Azur | drop source not traced (likely an unmodified base-game event script) |
-| Starcaller | armor | General Radahn's Set | Sold by Enia after defeating General Radahn | no drop source (shop, remembrance, crafted or quest reward) |
-| Starcaller | armor | Gaius Set | Sold by Enia after defeating Gaius | no drop source (shop, remembrance, crafted or quest reward) |
-| Starcaller | weapon | Bastard's Stars | Purchased after defeating Astel | no drop source (shop, remembrance, crafted or quest reward) |
+| Starcaller | armor | General Radahn's Set | Sold by Enia after defeating General Radahn | sold in a shop that isn't on the map (Roundtable Hold) or by an untraced merchant |
 | Starcaller | weapon | Ruins Greatsword | Found after defeating Dakk | drop source not traced (likely an unmodified base-game event script) |
-| Starcaller | weapon | Starscourge Greatsword | Purchased after defeating Radahn | no drop source (shop, remembrance, crafted or quest reward) |
-| Underworld Mage | weapon | Transcendant Talons | Purchased after defeating Daergraf | no drop source (shop, remembrance, crafted or quest reward) |
+| Starcaller | weapon | Starscourge Greatsword | Purchased after defeating Radahn | sold in a shop that isn't on the map (Roundtable Hold) or by an untraced merchant |
 | Volcanist | rune | Shadow Rune of Magma | Assembled by completing the Forges in the Land of Shadow | drop source not traced (likely an unmodified base-game event script) |
 | Volcanist | armor | Consort's Set | Given by Tanith after Istvan invasion | NPC quest or gift |
-| Volcanist | weapon | Blaphemous Blade | Purchased after defeating Rykard | no drop source (shop, remembrance, crafted or quest reward) |
 | Volcanist | weapon | Magma Whip Candlestick | Patches Quest | NPC quest or gift |
 | Stormcaller | weapon | Gargoyle's Twinblade | Found after defeating Valiant Gargoyle in Altus | drop source not traced (likely an unmodified base-game event script) |
-| Stormcaller | weapon | Axe of Godrick | Purchased after defeating Godrick | no drop source (shop, remembrance, crafted or quest reward) |
 | Nox Oracle | weapon | Sword of Darkness | Converted from the Stone-Sheathed Sword or the Sword of Light | drop source not traced (likely an unmodified base-game event script) |
 | Nox Oracle | weapon | Fingerslayer Blade | Given by Ranni's Quest | NPC quest or gift |
 | Necromancer | rune | Shining Rune of Necromancy | Found after defeating the Deathrite Bird in Mountaintops | drop source not traced (likely an unmodified base-game event script) |
@@ -162,35 +151,18 @@ Entries matched to an item but without a map position yet.
 | Frost Witch | rune | Shining Rune of Frost | Given by Ranni after finding the Fingerslayer Blade | NPC quest or gift |
 | Frost Witch | weapon | Rimeheart | Dropped by Borealis | drop source not traced (likely an unmodified base-game event script) |
 | Aberrant Heretic | weapon | Crimson Briar-Bough | Cave of Knowledge | drop source not traced (likely an unmodified base-game event script) |
-| Flame Prophet | armor | Messmer's Set | Purchased after defeating Messmer | no drop source (shop, remembrance, crafted or quest reward) |
-| Flame Prophet | weapon | Grafted Dragon | Purchased after defeating Godrick | no drop source (shop, remembrance, crafted or quest reward) |
 | Fundamentalist | armor | Goldmask's Set | Given by Goldmask after uncovering Marika's secret | NPC quest or gift |
-| Fundamentalist | armor | Young Lion's Set | Purchased after defeating Promised Consort | no drop source (shop, remembrance, crafted or quest reward) |
 | Fundamentalist | armor | Circlet of Light | Found after defeating Promised Consort | drop source not traced (likely an unmodified base-game event script) |
 | Fundamentalist | weapon | Erdsteel Dagger | Kenneth Haight's Quest | NPC quest or gift |
-| Bestial Devout | weapon | Sword of Hadea | Purchased after defeating Skarde | no drop source (shop, remembrance, crafted or quest reward) |
-| Bestial Devout | weapon | Beastman's Curved Sword | Merchant in South Caelid | no drop source (shop, remembrance, crafted or quest reward) |
-| Bestial Devout | weapon | Greatsword of Damnation | Purchased after defeating Midra | no drop source (shop, remembrance, crafted or quest reward) |
 | Dragon Cultist | armor | Priestess Heart | Given by the Dragon Communion Priestess through her quest | NPC quest or gift |
-| Dragon Cultist | weapon | Dragon King's Cragblade | Purchased after defeating Placidusax | no drop source (shop, remembrance, crafted or quest reward) |
-| Godskin Celebrant | armor | Maliketh's Set | Sold by Enia after defeating Maliketh | no drop source (shop, remembrance, crafted or quest reward) |
-| Godskin Celebrant | weapon | Maliketh's Black Blade | Purchased after defeating Maliketh | drop source not traced (likely an unmodified base-game event script) |
 | Frenzied Zealot | rune | Glowing Rune of Frenzied Flame | Found after defeating Festering Fingerprint Vyke | drop source not traced (likely an unmodified base-game event script) |
 | Frenzied Zealot | armor | Fingerprint Set | Found after defeating Roundtable Knight Vyke | drop source not traced (likely an unmodified base-game event script) |
 | Frenzied Zealot | weapon | Vyke's War Spear | Found after Festering Fingerprint Vyke invasion | drop source not traced (likely an unmodified base-game event script) |
 | Frenzied Zealot | weapon | Fingerprint Hexmark | Frenzied Flame Proscription | drop source not traced (likely an unmodified base-game event script) |
-| Frenzied Zealot | weapon | Greatsword of Midra | Purchased after defeating Midra | no drop source (shop, remembrance, crafted or quest reward) |
 | Blood Initiate | armor | House Marais Set | Found after defeating Maleigh Marais, Shaded Castle Castellan | drop source not traced (likely an unmodified base-game event script) |
 | Blood Initiate | weapon | Reduvia | Found after Bloody Finger Nerijus invasion | drop source not traced (likely an unmodified base-game event script) |
-| Blood Initiate | weapon | Morgott's Cursed Sword | Purchased after defeating Morgott | no drop source (shop, remembrance, crafted or quest reward) |
 | Blood Initiate | weapon | Eleonora's Poleblade | Found after Eleonora, Violet Bloody Finger invasion | drop source not traced (likely an unmodified base-game event script) |
-| Blood Initiate | weapon | Mohgwyn's Sacred Spear | Purchased after defeating Mohg | no drop source (shop, remembrance, crafted or quest reward) |
 | Blood Initiate | weapon | Bloodflame Kamas | Found on Sanguine Noble invader in Consecrated Snowfield | drop source not traced (likely an unmodified base-game event script) |
 | Servant of Rot | rune | Glowing Rune of Rot | Given by Gowry after giving him the Unalloyed Gold Needle | NPC quest or gift |
-| Servant of Rot | armor | Malenia's Set | Sold by Enia after defeating Malenia | no drop source (shop, remembrance, crafted or quest reward) |
 | Servant of Rot | weapon | Serpentbone Blade | Tanith Quest | NPC quest or gift |
-| Servant of Rot | weapon | Hand of Malenia | Purchased after defeating Malenia | no drop source (shop, remembrance, crafted or quest reward) |
-| Mystic | armor | Spiritshaper's Set | Purchased from Enia after defeating Caimar | no drop source (shop, remembrance, crafted or quest reward) |
-| Perfumer | weapon | Ripple Blade | Sold by Pidia | no drop source (shop, remembrance, crafted or quest reward) |
-| Perfumer | weapon | Deadly Poison Perfume Bottle | Purchased from Thiollier | no drop source (shop, remembrance, crafted or quest reward) |
-| Prisoner | armor | All-Knowing Helm | Given by Gideon after discovering Mohgwyn Dynasty Mausoleum | NPC quest or gift |
+| Prisoner | armor | All-Knowing Helm | Given by Gideon after discovering Mohgwyn Dynasty Mausoleum | sold in a shop that isn't on the map (Roundtable Hold) or by an untraced merchant |

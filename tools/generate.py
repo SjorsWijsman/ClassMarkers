@@ -65,6 +65,23 @@ def row_info(rid, b):
     }
 
 
+def small_tile(mapname, pos):
+    """Overworld maps also exist as low-detail copies covering 2x2 (m60_XX_ZZ_01) or 4x4 (_02)
+    tiles, with positions relative to that bigger tile (the digit before the level is a map
+    variant, e.g. _12). -> the regular tile and its position."""
+    level = int(mapname[11])
+    if mapname[1:3] not in ("60", "61") or level == 0:
+        return mapname, pos
+    n = 2 ** level
+    out = []
+    for big, local in ((int(mapname[4:6]), pos[0]), (int(mapname[7:9]), pos[2])):
+        world = big * n * 256 + n * 128 + local
+        tile = int(world // 256)
+        out.append((tile, world - tile * 256 - 128))
+    (bx, x), (bz, z) = out
+    return f"m{mapname[1:3]}_{bx:02d}_{bz:02d}_00", (x, pos[1], z)
+
+
 class Placer:
     """Turns an item location (map + position) into a world-map row placement.
 
@@ -133,6 +150,7 @@ class Placer:
         return 2 if aa == 12 else 4 if (20 <= aa <= 28 or 40 <= aa <= 43 or aa in (17, 61)) else 1
 
     def place(self, mapname, pos):
+        mapname, pos = small_tile(mapname, pos)
         aa, bb, cc = int(mapname[1:3]), int(mapname[4:6]), int(mapname[7:9])
         if aa in OVERWORLD_AREAS:
             pp = self.prefix_for_tile(aa, bb, cc)
@@ -157,7 +175,11 @@ class Placer:
                     how="boss-marker")
 
 
+SAME_SPOT_M = 10
+
+
 def build_markers(classes, report, placer):
+    import locate
     out, unplaced = [], []
     # A marker belongs to the note that lists it: runes and armor are in "Path of the <class>",
     # weapons in "Weapons for <class>".
@@ -166,7 +188,7 @@ def build_markers(classes, report, placer):
     for entry in report:
         placed_any = False
         for res in entry["results"]:
-            if res["how"] in ("pickup", "event", "defeat", "enemy"):
+            if res["how"] in locate.PLACED:
                 p = placer.place(res["map"], res["pos"])
             elif res["how"] in ("boss-marker", "place-name"):
                 p = placer.place_on_row(res["row"])
@@ -201,14 +223,18 @@ def build_markers(classes, report, placer):
 
     # One marker per note entry per spot: an armor set's pieces usually lie together. The marker
     # keeps every item found there; it hides once you've obtained all of them.
-    unique = {}
+    # Within 10 m counts as the same spot (one NPC placed twice for different quest states).
+    unique = []
     for m in out:
-        k = (m["cls"], m["entry"], m["block"], round(m["x"]), round(m["z"]))
-        first = unique.setdefault(k, dict(m, items=[]))
+        first = next((u for u in unique if (u["cls"], u["entry"], u["block"]) == (m["cls"], m["entry"], m["block"])
+                      and (u["x"] - m["x"]) ** 2 + (u["z"] - m["z"]) ** 2 <= SAME_SPOT_M ** 2), None)
+        if first is None:
+            first = dict(m, items=[])
+            unique.append(first)
         item = (m["cat"], m["item_id"], m["flag"])
         if item not in first["items"]:
             first["items"].append(item)
-    return list(unique.values()), unplaced
+    return unique, unplaced
 
 
 def note_flags(classes):
@@ -290,8 +316,10 @@ def write_matching_report(classes, report):
 
     def why_not_placed(e):
         hows = {r["how"] for r in e["results"]}
+        if "shop-only" in hows:
+            return "sold in a shop that isn't on the map (Roundtable Hold) or by an untraced merchant"
         if not any("lot" in r for r in e["results"]):
-            return "no drop source (shop, remembrance, crafted or quest reward)"
+            return "no drop or shop source (remembrance trade, crafted or quest reward)"
         if "common-enemy" in hows:
             return "dropped by a common enemy / recurring NPC"
         if re.search(r"given by|quest", e["loc"], re.I):
