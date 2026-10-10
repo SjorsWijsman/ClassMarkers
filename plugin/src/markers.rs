@@ -2,17 +2,30 @@
 
 pub const ROW_SIZE: usize = 256;
 
-/// An event flag the game keeps permanently on: a marker shows while its eventFlagId is on.
-const ALWAYS_ON_FLAG: u32 = 6001;
+/// Event flags the game keeps permanently on / off. A marker exists on the map while its
+/// eventFlagId is on, so switching between these shows or hides it.
+pub const ALWAYS_ON_FLAG: u32 = 6001;
+pub const ALWAYS_OFF_FLAG: u32 = 6000;
+/// Offset of eventFlagId in a WORLD_MAP_POINT_PARAM_ST row.
+pub const EVENT_FLAG_OFFSET: usize = 0x04;
 /// Map icon for every marker: icon 88, the round seal (user's choice; see available_map_icons.png).
 const MARKER_ICON: u16 = 88;
 
+/// A class note (see tools/generate.py). You own it once any of `flags` is on: they are set when
+/// one of the item lots that hand out the note is picked up.
+pub struct Note {
+    pub goods_id: u32,
+    pub class: &'static str,
+    /// "path" (Note: Path of the <class>) or "weapons" (Note: Weapons for <class>).
+    pub which: &'static str,
+    pub flags: &'static [u32],
+}
+
 /// One generated marker (see tools/generate.py).
 pub struct GenMarker {
-    /// Goods id of the class's "Note: Path of the <class>"; selects which class it belongs to.
+    /// Goods id of the class note that lists this item; the marker shows while you own it.
     pub note: u32,
-    /// Item category (1 goods, 2 weapon, 3 armor) and id, for item-name labels later.
-    #[allow(dead_code)]
+    /// Item category: 1 = goods (spell runes), 2 = weapon, 3 = armor.
     pub kind: u8,
     #[allow(dead_code)]
     pub item_id: i32,
@@ -47,6 +60,8 @@ pub struct Line {
 }
 
 pub struct Row {
+    /// Shown while this flag is on.
+    pub event_flag: u32,
     pub area: u8,
     pub grid_x: u8,
     pub grid_z: u8,
@@ -61,7 +76,7 @@ impl Row {
     pub fn encode(&self) -> [u8; ROW_SIZE] {
         let mut r = [0u8; ROW_SIZE];
         let put = |r: &mut [u8; ROW_SIZE], at: usize, v: &[u8]| r[at..at + v.len()].copy_from_slice(v);
-        put(&mut r, 0x04, &ALWAYS_ON_FLAG.to_le_bytes()); // eventFlagId: shown while on
+        put(&mut r, EVENT_FLAG_OFFSET, &self.event_flag.to_le_bytes()); // eventFlagId: shown while on
         put(&mut r, 0x0C, &MARKER_ICON.to_le_bytes()); // iconId
         if self.lines.iter().all(|l| l.text_id < 0) {
             r[0x10] |= 0b100; // isEnableNoText: show the icon even without a label
@@ -93,11 +108,29 @@ impl Row {
 }
 
 impl GenMarker {
-    /// The marker's row. `label` = our item-name text id for line 1 (place name on line 2),
-    /// or None to show just the place name.
+    /// Map label: "<class> <type> - <name as written in the note>",
+    /// e.g. "Nox Oracle Rune - Shimmering Rune of Night".
+    pub fn label_text(&self) -> String {
+        let kind = match self.kind {
+            1 => "Rune",
+            2 => "Weapon",
+            3 => "Armor",
+            _ => "Item",
+        };
+        let class = crate::generated::NOTES
+            .iter()
+            .find(|n| n.goods_id == self.note)
+            .map_or("", |n| n.class);
+        format!("{} {} - {}", class, kind, self.name).trim_start().to_string()
+    }
+
+    /// The marker's row: line 1 = the place, line 2 = `label` (our "<class> <type> - <item>" text id),
+    /// or just the place when there's no label.
     pub fn row(&self, label: Option<i32>) -> Row {
         let line = |text_id| Line { text_id, text_type: 0, hide_flag: self.hide_flag };
         Row {
+            // Hidden until the class-note check has seen that you own the note.
+            event_flag: ALWAYS_OFF_FLAG,
             area: self.area,
             grid_x: self.grid_x,
             grid_z: self.grid_z,
@@ -106,9 +139,9 @@ impl GenMarker {
             z: self.z,
             disp_mask: self.disp_mask,
             // The engine hides a marker once all its text lines are hidden, so hiding the
-            // label on pickup removes the marker.
+            // lines on pickup removes the marker.
             lines: match label {
-                Some(id) if self.text_id >= 0 => vec![line(id), line(self.text_id)],
+                Some(id) if self.text_id >= 0 => vec![line(self.text_id), line(id)],
                 Some(id) => vec![line(id)],
                 None => vec![line(self.text_id)],
             },

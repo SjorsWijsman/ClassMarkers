@@ -1,13 +1,14 @@
 #![allow(non_snake_case)]
 //! Class Markers: adds map markers for the items listed in your Convergence class notes.
 //!
-//! Proof of concept: injects a fixed set of test markers into WorldMapPointParam at runtime.
-//! Nothing on disk is modified. The approach for growing the marker table in memory follows
-//! Map For Goblins - DLL by VirusAlex (MIT): https://github.com/VirusAlex/ERR-MapForGoblins-DLL
+//! Markers (generated from Convergence's files, see tools/generate.py) are added to
+//! WorldMapPointParam at startup, labelled through the PlaceName text, and shown only while you
+//! own the class note that lists them. Nothing on disk is modified. The approach for growing the
+//! marker table and text in memory follows Map For Goblins - DLL by VirusAlex (MIT):
+//! https://github.com/VirusAlex/ERR-MapForGoblins-DLL
 
-#[allow(dead_code)] // for class detection, next step
+mod classes;
 mod flags;
-#[allow(dead_code)] // CLASSES is for class detection, next step
 mod generated;
 mod inject;
 mod log;
@@ -34,18 +35,20 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
 
 fn run() {
     log!("Class Markers {} loaded", env!("CARGO_PKG_VERSION"));
-    // Until class detection is in: show the Nox Oracle's markers only.
-    const TEST_CLASS_NOTE: u32 = 8812;
-    let chosen: Vec<&markers::GenMarker> =
-        generated::MARKERS.iter().filter(|m| m.note == TEST_CLASS_NOTE).collect();
+    let markers = generated::MARKERS;
 
     // Labels first: a marker must never point at text that doesn't exist.
-    static ROWS: OnceLock<Vec<usize>> = OnceLock::new();
-    let labels = chosen.iter().map(|m| m.name.to_string()).collect();
+    static ROWS: OnceLock<Vec<Option<usize>>> = OnceLock::new();
+    let labels = markers.iter().map(|m| m.label_text()).collect();
     let have_labels = match msg::add_labels(labels, || {
-        // Labels lost: blank line 1 of our rows so their place-name line shows instead.
-        for &row in ROWS.get().into_iter().flatten() {
-            unsafe { std::ptr::write_unaligned((row + 0x30) as *mut i32, -1) };
+        // Labels lost: blank every text line of ours so only the place-name lines remain.
+        for &row in ROWS.get().into_iter().flatten().flatten() {
+            for k in 0..8 {
+                let at = (row + 0x30 + 12 * k) as *mut i32;
+                if unsafe { std::ptr::read_unaligned(at) } >= msg::FIRST_TEXT_ID {
+                    unsafe { std::ptr::write_unaligned(at, -1) };
+                }
+            }
         }
     }) {
         Ok(()) => true,
@@ -55,7 +58,7 @@ fn run() {
         }
     };
 
-    let add: Vec<_> = chosen
+    let add: Vec<_> = markers
         .iter()
         .enumerate()
         .map(|(i, m)| {
@@ -65,8 +68,10 @@ fn run() {
         .collect();
     match inject::inject(add) {
         Ok(rows) => {
-            log!("Done: {} marker(s) added to the world map", rows.len());
+            log!("Done: {} of {} marker(s) added to the world map", rows.iter().flatten().count(), markers.len());
+            let by_note = markers.iter().zip(&rows).filter_map(|(m, r)| r.map(|r| (m.note, r))).collect();
             let _ = ROWS.set(rows);
+            classes::watch(by_note);
         }
         Err(e) => log!("Markers NOT added: {}", e),
     }

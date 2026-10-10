@@ -121,9 +121,9 @@ pub unsafe fn alloc_like(neighbor: *const u8, size: usize) -> Result<*mut u8, St
 /// First two-digit row number we use inside a map block (Convergence's own rows use 00-19).
 const FIRST_SLOT: i32 = 20;
 
-/// Add `markers` (map block, row, log label) to the world map. Returns the address of each
-/// added row's data in the live table (in `markers` order; skipped markers are left out).
-pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<usize>, String> {
+/// Add `markers` (map block, row, log label) to the world map. Returns, in `markers` order, the
+/// address of each row's data in the live table (None if its map block had no free row id).
+pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<Option<usize>>, String> {
     let list = wait_for_param_list()?;
     unsafe {
         let header = find_param_header(list, "WorldMapPointParam").ok_or("WorldMapPointParam not found")?;
@@ -145,8 +145,11 @@ pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<usize>, String> {
         // block * 100 + the first free two-digit number in that block.
         let mut taken: HashSet<i32> = rows.iter().map(|(id, _)| *id).collect();
         let mut ours: Vec<(i32, [u8; ROW_SIZE])> = vec![];
+        let mut ids: Vec<Option<i32>> = vec![];
         for (block, row, label) in &markers {
-            match (FIRST_SLOT..100).map(|n| block * 100 + n).find(|id| !taken.contains(id)) {
+            // Prefer numbers above Convergence's own (00-19); use any free one if the block is busy.
+            let free = (FIRST_SLOT..100).chain(0..FIRST_SLOT).map(|n| block * 100 + n).find(|id| !taken.contains(id));
+            match free {
                 Some(id) => {
                     taken.insert(id);
                     ours.push((id, row.encode()));
@@ -154,6 +157,7 @@ pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<usize>, String> {
                 }
                 None => log!("  SKIPPED (map block {} is full): {}", block, label),
             }
+            ids.push(free);
         }
         for (id, data) in &ours {
             rows.push((*id, data.as_ptr()));
@@ -212,6 +216,6 @@ pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<usize>, String> {
         });
         let index: std::collections::HashMap<i32, usize> =
             rows.iter().enumerate().map(|(i, (id, _))| (*id, i)).collect();
-        Ok(ours.iter().map(|(id, _)| new.add(data_start + index[id] * ROW_SIZE) as usize).collect())
+        Ok(ids.iter().map(|id| id.map(|id| new.add(data_start + index[&id] * ROW_SIZE) as usize)).collect())
     }
 }
