@@ -501,7 +501,7 @@ spelling difference between the note and the item's real name.
 | Blood Initiate | rune | Shining Rune of Bloodflame | Shining Rune of Bloodflame | exact | yes |
 | Blood Initiate | rune | Radiant Rune of Bloodflame | Radiant Rune of Bloodflame | exact | yes |
 | Blood Initiate | rune | Shadow Rune of Bloodflame | Shadow Rune of Bloodflame | exact | yes |
-| Blood Initiate | armor | House Marais Set | Marais Mask, Marais Robe | **set via 'Marais'** | no |
+| Blood Initiate | armor | House Marais Set | Bloodsoaked Manchettes, Bloodsoaked Wraps, Marais Mask, Marais Robe | **override** | yes |
 | Blood Initiate | armor | Sanguine Noble Set | Sanguine Noble Bracelets, Sanguine Noble Hood, Sanguine Noble Robe, Sanguine Noble Waistcloth | set | yes |
 | Blood Initiate | armor | White Reed Set | Okina Mask, White Reed Armor, White Reed Gauntlets, White Reed Greaves | set | yes |
 | Blood Initiate | armor | Ansbach's Set | Ansbach's Attire, Ansbach's Boots, Ansbach's Manchettes, Wise Man's Mask | set | yes |

@@ -28,7 +28,11 @@ FUZZY_CUTOFF = 0.93          # only near-identical spellings count as a typo mat
 LEG_WORDS = ("greaves", "trousers", "leggings", "boots", "legwraps", "waistcloth")
 
 # Note entries the rules can't settle. Keep this short and explain each one.
-OVERRIDES = {}
+OVERRIDES = {
+    # Convergence's House Marais set is the Marais mask and robe plus the Bloodsoaked arms and legs
+    # (same passive); the last two sit in another id block, so the set rule can't find them.
+    "House Marais Set": ["Marais Mask", "Marais Robe", "Bloodsoaked Manchettes", "Bloodsoaked Wraps"],
+}
 
 
 @dataclass

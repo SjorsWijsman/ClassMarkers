@@ -334,6 +334,8 @@ def write_matching_report(classes, report):
 
 
 def main():
+    import icons
+    icons.main()
     extract()
     from build_data import build_classes
     classes = build_classes()

@@ -1,11 +1,12 @@
 [package]
 name = "class_markers"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 
 [lib]
 name = "ClassMarkers"
-crate-type = ["cdylib"]
+# rlib only so `cargo test` can run the gfx builder test (src/gfx.rs)
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Elden Ring structures (inventory, task system), pinned to the revision this was written against.

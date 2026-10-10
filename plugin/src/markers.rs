@@ -1,5 +1,7 @@
 //! Marker definitions and their WORLD_MAP_POINT_PARAM_ST (256-byte) encoding.
 
+use crate::gfx::IconIds;
+
 pub const ROW_SIZE: usize = 256;
 
 /// Event flags the game keeps permanently on / off. A marker exists on the map while its
@@ -8,8 +10,8 @@ pub const ALWAYS_ON_FLAG: u32 = 6001;
 pub const ALWAYS_OFF_FLAG: u32 = 6000;
 /// Offset of eventFlagId in a WORLD_MAP_POINT_PARAM_ST row.
 pub const EVENT_FLAG_OFFSET: usize = 0x04;
-/// Map icon for every marker: icon 88, the round seal (user's choice; see available_map_icons.png).
-const MARKER_ICON: u16 = 88;
+/// Stock map icon used when our own icons (gfx.rs) are not available: 88, the round seal.
+pub const STOCK_ICON: u16 = 88;
 
 /// A class note (see tools/generate.py). You own it once any of `flags` is on: they are set when
 /// one of the item lots that hand out the note is picked up.
@@ -67,6 +69,7 @@ pub struct Line {
 pub struct Row {
     /// Shown while this flag is on.
     pub event_flag: u32,
+    pub icon: u16,
     pub area: u8,
     pub grid_x: u8,
     pub grid_z: u8,
@@ -82,7 +85,7 @@ impl Row {
         let mut r = [0u8; ROW_SIZE];
         let put = |r: &mut [u8; ROW_SIZE], at: usize, v: &[u8]| r[at..at + v.len()].copy_from_slice(v);
         put(&mut r, EVENT_FLAG_OFFSET, &self.event_flag.to_le_bytes()); // eventFlagId: shown while on
-        put(&mut r, 0x0C, &MARKER_ICON.to_le_bytes()); // iconId
+        put(&mut r, 0x0C, &self.icon.to_le_bytes()); // iconId
         if self.lines.iter().all(|l| l.text_id < 0) {
             r[0x10] |= 0b100; // isEnableNoText: show the icon even without a label
         }
@@ -130,12 +133,19 @@ impl GenMarker {
 
     /// The marker's row: line 1 = the place, line 2 = `label` (our "<class> <type> - <item>" text id),
     /// or just the place when there's no label.
-    pub fn row(&self, label: Option<i32>) -> Row {
+    /// `icons`: our own icons when available (see gfx.rs), else the stock icon.
+    pub fn row(&self, label: Option<i32>, icons: Option<IconIds>) -> Row {
         let line = |text_id| Line { text_id, text_type: 0 };
         Row {
             // Hidden until the visibility check (classes.rs) has seen that you own the note and
             // haven't obtained the item(s) yet.
             event_flag: ALWAYS_OFF_FLAG,
+            icon: match (icons, self.kind) {
+                (Some(i), 1) => i.rune,
+                (Some(i), 2) => i.weapon,
+                (Some(i), 3) => i.armor,
+                _ => STOCK_ICON,
+            },
             area: self.area,
             grid_x: self.grid_x,
             grid_z: self.grid_z,

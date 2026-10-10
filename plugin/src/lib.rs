@@ -10,6 +10,7 @@
 mod classes;
 mod flags;
 mod generated;
+mod gfx;
 mod inject;
 mod log;
 mod markers;
@@ -17,6 +18,9 @@ mod msg;
 mod scan;
 
 use std::sync::OnceLock;
+
+/// Our own map icons, if they could be added (see gfx.rs).
+static ICONS: OnceLock<Option<gfx::IconIds>> = OnceLock::new();
 
 use std::ffi::c_void;
 use windows_sys::Win32::Foundation::{HMODULE, TRUE};
@@ -27,7 +31,10 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         log::init(module);
-        // Never do real work under the loader lock: hand off to our own thread.
+        // Our icons have to be in place before the game loads its menus, so this one small job
+        // (a file read and write) runs right here; everything else goes to our own thread.
+        let icons = log::dll_dir().and_then(|d| gfx::prepare(d));
+        let _ = ICONS.set(icons);
         std::thread::spawn(run);
     }
     TRUE
@@ -63,7 +70,7 @@ fn run() {
         .enumerate()
         .map(|(i, m)| {
             let label = have_labels.then_some(msg::FIRST_TEXT_ID + i as i32);
-            (m.block, m.row(label), m.label.to_string())
+            (m.block, m.row(label, ICONS.get().copied().flatten()), m.label.to_string())
         })
         .collect();
     match inject::inject(add) {

@@ -284,6 +284,8 @@ def place_for_text(loc):
     best, hits = None, []
     for r in NAMED_ROWS:
         nw = norm(r["name"])
+        if nw[:1] == ["the"] and len(nw) > 2:   # "The Shaded Castle" is written "Shaded Castle"
+            nw = nw[1:]
         if not nw or not any(words[i:i + len(nw)] == nw for i in range(len(words) - len(nw) + 1)):
             continue
         score = (len(nw), r["boss"] == defeat)

@@ -12,3 +12,6 @@ __pycache__/
 
 # This machine's ConvergenceER location
 convergence_path.txt
+
+# The plugin's generated world map movie (me3 package), rebuilt at every start
+mod/
