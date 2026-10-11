@@ -12,11 +12,15 @@ mod colors;
 mod flags;
 mod generated;
 mod gfx;
+mod iconart;
+mod iconcache;
+mod iconsource;
 mod inject;
 mod log;
 mod markers;
 mod msg;
 mod noteicons;
+mod notetext;
 mod pixels;
 mod scan;
 mod tracker;
@@ -40,6 +44,9 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
         // Our icons have to be in place before the game loads its menus, so these jobs (file reads
         // and writes; seconds only when the note icons changed) run right here; everything else
         // goes to our own thread.
+        if let Some(d) = log::dll_dir() {
+            iconcache::prepare(d); // our icons, made from Convergence's art (cached)
+        }
         let icons = log::dll_dir().map(|d| gfx::prepare(d)).unwrap_or_default();
         let _ = ICONS.set(icons);
         let notes = log::dll_dir().map(|d| noteicons::prepare(d)).unwrap_or_default();
@@ -52,6 +59,10 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
 fn run() {
     log!("Class Markers {} loaded", env!("CARGO_PKG_VERSION"));
     let markers = generated::MARKERS;
+    // Convergence's words (note entries, intros, item names), before we change any text.
+    if let Err(e) = notetext::load() {
+        log!("Couldn't read the class notes from the game's text ({}); labels will be short", e);
+    }
 
     // Labels first: a marker must never point at text that doesn't exist.
     static ROWS: OnceLock<Vec<Option<usize>>> = OnceLock::new();

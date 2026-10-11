@@ -13,6 +13,7 @@
 //! is rewritten in place there, so nothing is re-allocated while playing.
 
 use crate::generated::{NOTES, NOTE_TEXTS};
+use crate::notetext;
 use crate::markers::Item;
 use crate::msg::{fmg_string, in_colour, note_img, ICON_PX};
 use std::collections::HashMap;
@@ -22,28 +23,31 @@ use std::sync::{Arc, Mutex, OnceLock};
 /// A class note, as the plugin writes it.
 pub struct NoteText {
     pub note: u32,
-    /// "The <class> primarily uses ...".
-    pub intro: &'static str,
+    /// The note whose "The <class> primarily uses ..." line this one shows (notetext.rs).
+    pub intro_note: u32,
     pub sections: &'static [NoteSection],
 }
 
 pub struct NoteSection {
-    /// "Night spell runes", "Armor", "Weapons".
-    pub heading: &'static str,
+    /// 1 runes ("Runes of Night"), 3 armor, 2 weapons.
+    pub kind: u8,
+    /// The note whose lines the entries are.
+    pub source: u32,
     pub entries: &'static [NoteEntry],
 }
 
 /// One line of a note, as Convergence wrote it.
 pub struct NoteEntry {
-    pub name: &'static str,
-    pub location: &'static str,
+    /// Its line in the source note, and the one item to name it after (notetext.rs).
+    pub line: u16,
+    pub name_item: Option<(u8, u32)>,
     pub items: &'static [Item],
     /// Starts a new group (an armor set): a blank line before it.
     pub new_group: bool,
 }
 
 /// Section headings.
-const HEADING: &str = "#C0B194";
+pub const HEADING: &str = "#C0B194";
 /// What you've found.
 const FOUND: &str = "#8A8378";
 /// Item names of a class without a colour (Convergence's own).
@@ -71,6 +75,10 @@ struct State {
 
 static STATE: OnceLock<Mutex<State>> = OnceLock::new();
 
+fn name(s: &NoteSection, e: &NoteEntry) -> String {
+    notetext::name(s.source, e.line, e.name_item)
+}
+
 fn grey(s: &str) -> String {
     format!("<font color=\"{}\">{}</font>", FOUND, s)
 }
@@ -87,19 +95,24 @@ fn build(t: &NoteText, colours: &HashMap<&'static str, String>, found: &dyn Fn(&
         note_img(note, ICON_PX),
         in_colour(&format!("{}   {} / {} found", class, got, total), class, colours)
     );
-    let mut out = String::from(t.intro);
+    let mut out = notetext::intro(t.intro_note, class);
     for s in t.sections {
         let got = s.entries.iter().filter(|e| found(e)).count();
-        out += &format!("\n\n<font color=\"{}\">{}   {} / {}</font>", HEADING, s.heading, got, s.entries.len());
+        let heading = match s.kind {
+            1 => s.entries.first().map(|e| notetext::rune_heading(&notetext::name(s.source, e.line, e.name_item))).unwrap_or_default(),
+            2 => "Weapons".to_string(),
+            _ => "Armor".to_string(),
+        };
+        out += &format!("\n\n<font color=\"{}\">{}   {} / {}</font>", HEADING, heading, got, s.entries.len());
         for e in s.entries {
             if e.new_group {
                 out += "\n";
             }
             out += "\n";
             out += &if found(e) {
-                grey(&format!("{} - {}", e.name, e.location))
+                grey(&format!("{} - {}", name(s, e), notetext::location(s.source, e.line)))
             } else {
-                format!("<font color=\"{}\">{}</font> - {}", name_colour, e.name, e.location)
+                format!("<font color=\"{}\">{}</font> - {}", name_colour, name(s, e), notetext::location(s.source, e.line))
             };
         }
     }
@@ -178,6 +191,7 @@ mod tests {
     #[test]
     fn write_all_notes() {
         let Ok(out) = std::env::var("CM_NOTES_OUT") else { return };
+        crate::notetext::tests::load_from_export();
         let colours = HashMap::new();
         let mut all = String::new();
         for t in NOTE_TEXTS {

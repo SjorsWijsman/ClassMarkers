@@ -1,0 +1,39 @@
+# Builds a release when a version tag is pushed (git tag v1.0.0 && git push origin v1.0.0): the
+# plugin, packed with tools/package.ps1, attached to a GitHub release for that tag. The generated
+# data and icons are committed, so this needs no copy of The Convergence.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches the plugin version
+        shell: pwsh
+        run: |
+          $v = (Select-String plugin/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} doesn't match version $v in plugin/Cargo.toml"
+          }
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release --manifest-path plugin/Cargo.toml
+
+      - name: Package
+        shell: pwsh
+        run: ./tools/package.ps1
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

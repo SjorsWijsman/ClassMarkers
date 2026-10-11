@@ -23,7 +23,6 @@ const MIN_LUMINANCE: f32 = 0.5;
 
 /// Class name -> "#RRGGBB".
 pub fn class_colors(dll_dir: &Path) -> HashMap<&'static str, String> {
-    let dir = dll_dir.join("icons").join("notes");
     let mut out = HashMap::new();
     // Path icons first; a weapons icon only for a class whose path icon gave nothing.
     for which in ["path", "weapons"] {
@@ -31,7 +30,8 @@ pub fn class_colors(dll_dir: &Path) -> HashMap<&'static str, String> {
             if out.contains_key(note.class) {
                 continue;
             }
-            let Ok(bytes) = std::fs::read(dir.join(format!("{} ({}).png", note.class, note.which))) else { continue };
+            let path = crate::iconcache::icon_path(dll_dir, "notes", &format!("{} ({}).png", note.class, note.which));
+            let Ok(bytes) = std::fs::read(path) else { continue };
             if let Some(c) = decode_png(&bytes).ok().and_then(|img| icon_colour(&img.data)) {
                 out.insert(note.class, c);
             }

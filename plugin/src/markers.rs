@@ -56,10 +56,10 @@ pub struct GenMarker {
     pub disp_mask: u8,
     /// PlaceName text shown on hover (-1 = none).
     pub text_id: i32,
-    /// Map label: the entry's name as written in the class note.
-    pub name: &'static str,
-    /// Where the class note says to find it, as written there.
-    pub hint: &'static str,
+    /// Which entry of its note this is: its line (notetext.rs), and the one item to name it after
+    /// if it is one item (the game's spelling).
+    pub line: u16,
+    pub name_item: Option<(u8, u32)>,
     /// For the log.
     pub label: &'static str,
 }
@@ -120,6 +120,16 @@ impl Row {
 }
 
 impl GenMarker {
+    /// The entry's name (the item's own when it is one item).
+    fn name(&self) -> String {
+        crate::notetext::name(self.note, self.line, self.name_item)
+    }
+
+    /// Where the note says to find it.
+    fn hint(&self) -> String {
+        crate::notetext::location(self.note, self.line)
+    }
+
     fn note(&self) -> Option<&'static Note> {
         crate::generated::NOTES.iter().find(|n| n.goods_id == self.note)
     }
@@ -128,8 +138,8 @@ impl GenMarker {
     /// class -> "#RRGGBB", see colors.rs), e.g. "Nox Oracle - Shimmering Rune of Night".
     pub fn label_text(&self, colours: &HashMap<&str, String>) -> String {
         match self.note() {
-            Some(n) => format!("{} - {}", crate::msg::in_colour(n.class, n.class, colours), self.name),
-            None => self.name.to_string(),
+            Some(n) => format!("{} - {}", crate::msg::in_colour(n.class, n.class, colours), self.name()),
+            None => self.name(),
         }
     }
 
@@ -137,8 +147,14 @@ impl GenMarker {
     /// in item descriptions, smaller).
     pub fn hint_text(&self) -> String {
         match self.note() {
-            Some(n) => format!("{}{}", crate::msg::note_img(n, crate::msg::MAP_ICON_PX), self.hint),
-            None => format!("Note: {}", self.hint),
+            // In the notes' heading colour (tracker.rs), so it reads as the note speaking.
+            Some(n) => format!(
+                "{}<font color=\"{}\">{}</font>",
+                crate::msg::note_img(n, crate::msg::MAP_ICON_PX),
+                crate::tracker::HEADING,
+                self.hint()
+            ),
+            None => format!("Note: {}", self.hint()),
         }
     }
 
@@ -154,7 +170,7 @@ impl GenMarker {
         }
         if let Some((label, hint)) = texts {
             lines.push(line(label));
-            if !self.hint.is_empty() {
+            if !self.hint().is_empty() {
                 lines.push(line(hint));
             }
         }
@@ -163,9 +179,13 @@ impl GenMarker {
             // haven't obtained the item(s) yet.
             event_flag: ALWAYS_OFF_FLAG,
             icon: (self.kind == 1)
-                .then(|| self.name.split(' ').next().and_then(|t| crate::gfx::RUNE_TIERS.iter().find(|r| **r == t)))
+                .then(|| {
+                    let name = self.name();
+                    let first = name.split(' ').next().unwrap_or("");
+                    crate::gfx::RUNE_TIERS.iter().copied().find(|t| *t == first)
+                })
                 .flatten()
-                .and_then(|tier| icons.get(&(self.note, *tier)))
+                .and_then(|tier| icons.get(&(self.note, tier)))
                 .or_else(|| icons.get(&(self.note, "")))
                 .copied()
                 .unwrap_or(STOCK_ICON),

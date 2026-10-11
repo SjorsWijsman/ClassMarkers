@@ -52,7 +52,7 @@ fn lossless2_body(img: &Rgba) -> Vec<u8> {
 
 /// Where a note's map icon file is.
 pub fn note_icon_path(dll_dir: &Path, class: &str, which: &str) -> std::path::PathBuf {
-    dll_dir.join("icons").join("map").join(format!("{} ({}).png", class, which))
+    crate::iconcache::icon_path(dll_dir, "map", &format!("{} ({}).png", class, which))
 }
 
 /// Spell rune tiers, the first word of a rune's name ("Shimmering Rune of the Storm").

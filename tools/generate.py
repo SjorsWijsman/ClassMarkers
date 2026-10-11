@@ -233,7 +233,9 @@ def build_markers(classes, report, placer):
                 continue
             note = weapons_note[entry["class"]] if entry["kind"] == "weapon" else path_note[entry["class"]]
             items = [(r["cat"], r["item_id"]) for r in entry["results"] if "item_id" in r]
-            out.append(dict(p, cls=entry["class"], note=note, entry=display_name(entry["name"], items), hint=entry["loc"],
+            out.append(dict(p, cls=entry["class"], note=note, entry=entry["name"], loc=entry["loc"],
+                            name_item=name_item(entry["name"], items),
+                            line=line_of(note, entry["name"], entry["loc"], set()),
                             kind=ITEM_KIND[entry["kind"]], item_id=res["item_id"], item=res["piece"], cat=res["cat"],
                             flag=res.get("flag", 0) or 0, src=f'{res["how"]} {res.get("map", "")}'.strip()))
             placed_any = True
@@ -457,69 +459,101 @@ def item_names():
     return _ITEM_NAMES
 
 
-def display_name(name, items):
-    """An entry's name as the game spells it: the item's own name when the entry is exactly one
-    item (the notes have typos: "Blaphemous Blade", "Golem's Greatbow"); armor sets and combined
-    entries ("Envoy's Horn & Coded Sword") keep the note's wording."""
+_CAPTIONS = {}
+
+
+def goods_captions():
+    """{goods id: description} (later layers win)."""
+    if not _CAPTIONS:
+        for f in ("GoodsCaption", "GoodsCaption_dlc01", "GoodsCaption_dlc02"):
+            _CAPTIONS.update({int(k): v for k, v in json.load(open(os.path.join(common.ITEM_DIR, f + ".fmg.json"),
+                                                                    encoding="utf-8")).items() if v})
+    return _CAPTIONS
+
+
+def note_lines(note):
+    """A class note's entry lines in order, split exactly as the plugin splits the note's text at
+    startup (plugin/src/notetext.rs): font tags removed, lines holding " - " are (name, location)."""
+    text = re.sub(r"</?font[^>]*>", "", goods_captions().get(note, ""))
+    out = []
+    for line in text.split("\n"):
+        line = line.strip()
+        if " - " in line:
+            name, loc = line.split(" - ", 1)
+            out.append((name.strip(), loc.strip()))
+    return out
+
+
+def line_of(note, name, loc, taken):
+    """The index of note entry (name, loc) among note_lines(note); `taken` avoids reusing one."""
+    for i, nl in enumerate(note_lines(note)):
+        if nl == (name.strip(), loc.strip()) and (note, i) not in taken:
+            taken.add((note, i))
+            return i
+    raise ValueError(f"note {note} has no line {name!r} - {loc!r}")
+
+
+def name_item(name, items):
+    """The one item an entry is, if it's exactly one item and not a set: the plugin then names it as
+    the game does (the notes have typos: "Blaphemous Blade"). As a Rust Option."""
     ids = {(cat, item) for cat, item, *_ in items}
     if len(ids) == 1 and not (name.endswith(" Set") or name.startswith("Set of ")):
-        return item_names().get(next(iter(ids)), name)
-    return name
+        return "Some((%d, %d))" % next(iter(ids))
+    return "None"
 
 
-def rune_heading(runes):
-    """A rune section's heading from the runes' family: "Runes of Night", "Glintstone Runes"."""
-    family = runes[0][0].split(" ", 1)[-1]
-    if family.startswith("Rune of "):
-        return "Runes" + family[len("Rune"):]
-    return family + "s" if family.endswith("Rune") else family
+def intro_note(c):
+    """The note whose "primarily uses" line both of a class's notes show (path note first)."""
+    for note in (c["pathId"], c.get("weaponsId")):
+        if note and re.search(r"primarily uses|favors", goods_captions().get(note, "")):
+            return note
+    return c["pathId"]
 
 
 def note_texts(classes, report):
-    """The class notes, rebuilt in one layout by the plugin (plugin/src/tracker.rs): per note
-    (goods id, intro, [(heading, [(name, location, items, starts a group)])]). Both notes of a
-    class share one intro, the path note's "primarily uses" line (else the weapons note's);
-    runes are headed by their family ("Runes of Night"); entry names are spelled as the game
-    spells the item (display_name); armor keeps the note's sets, a group each."""
-    captions = {}
-    for f in ("GoodsCaption", "GoodsCaption_dlc01", "GoodsCaption_dlc02"):
-        captions.update({int(k): v for k, v in json.load(open(os.path.join(common.ITEM_DIR, f + ".fmg.json"),
-                                                               encoding="utf-8")).items() if v})
+    """The class notes as the plugin rebuilds them (plugin/src/tracker.rs), as numbers only: per
+    note (goods id, intro note, [(kind, source note, [(line, name item, items, starts a group)])]).
+    The plugin reads names, locations and the intro from Convergence's own text by line number, so
+    none of Convergence's words are copied here. Kind: 1 runes, 3 armor, 2 weapons."""
     items_of = defaultdict(set)
     for e in report:
         for res in e["results"]:
             if "item_id" in res:
                 items_of[(e["class"], e["name"])].add((res["cat"], res["item_id"], res.get("flag", 0) or 0))
-
-    def intro_of(note):
-        for line in captions.get(note, "").split("\n"):
-            if re.search(r"primarily uses|favors", line):
-                return line.strip()
-        return None
-
     out = []
     for c in classes:
-        cls = c["name"]
-        notes = [n for n in (c["pathId"], c.get("weaponsId")) if n]
-        intro = next((i for i in map(intro_of, notes) if i), "")
-        if intro.startswith(cls):
-            intro = "The " + intro                       # "Marksman primarily uses ..."
+        cls, taken = c["name"], set()
+        path, weapons_note = c["pathId"], c.get("weaponsId")
 
-        def entry(name, loc, first):
+        def entry(note, name, loc, first):
             items = sorted(items_of[(cls, name)])
-            return (display_name(name, items), loc, items, first)
-        path = []
+            return (line_of(note, name, loc, taken), name_item(name, items), items, first)
+        sections = []
         if c["runes"]:
-            path.append((rune_heading(c["runes"]), [entry(n, l, False) for n, l in c["runes"]]))
+            sections.append((1, path, [entry(path, n, l, False) for n, l in c["runes"]]))
         if c["armor"]:
-            path.append(("Armor", [entry(n, l, k > 0 and i == 0)
-                                   for k, group in enumerate(c["armor"]) for i, (n, l) in enumerate(group)]))
-        weapons = [("Weapons", [entry(n, l, False) for n, l in c["weapons"]])] if c["weapons"] else []
-        if c.get("weaponsId"):
-            out.append((c["pathId"], intro, path))
-            out.append((c["weaponsId"], intro, weapons))
+            sections.append((3, path, [entry(path, n, l, k > 0 and i == 0)
+                                       for k, group in enumerate(c["armor"]) for i, (n, l) in enumerate(group)]))
+        weapons = [(2, weapons_note, [entry(weapons_note, n, l, False) for n, l in c["weapons"]])] if c["weapons"] else []
+        if weapons_note:
+            out.append((path, intro_note(c), sections))
+            out.append((weapons_note, intro_note(c), weapons))
         else:
-            out.append((c["pathId"], intro, path + weapons))
+            out.append((path, intro_note(c), sections + weapons))
+    return out
+
+
+def rune_art(classes):
+    """[(class, tier, icon id)] for every rune of the schools each class's notes list: the plugin
+    makes each tier's map icon from that icon's detail image (plugin/src/iconcache.rs)."""
+    icons = goods_icons()
+    out = []
+    for c in classes:
+        schools = {r.split(" ", 1)[-1] for r, _ in c["runes"]}
+        for gid in sorted(rune_spells()):
+            tier, _, school = item_names().get((1, gid), "").partition(" ")
+            if school in schools and icons.get(gid):
+                out.append((c["name"], tier, icons[gid]))
     return out
 
 
@@ -540,11 +574,11 @@ def write_rust(classes, markers, placer, report):
     for m in markers:
         lines.append(
             "    GenMarker { note: %d, kind: %d, items: &[%s], block: %d, area: %d, grid_x: %d, grid_z: %d, "
-            "x: %.3f, y: %.3f, z: %.3f, disp_mask: %d, text_id: %d, name: %s, hint: %s, label: %s },"
+            "x: %.3f, y: %.3f, z: %.3f, disp_mask: %d, text_id: %d, line: %d, name_item: %s, label: %s },"
             % (m["note"], m["kind"], ", ".join("Item { category: %d, id: %d, flag: %d }" % i for i in m["items"]),
                m["block"], m["area"], m["gx"], m["gz"],
-               m["x"], m["y"], m["z"], m["disp_mask"], m["text_id"], rust_str(m["entry"]), rust_str(m["hint"]),
-               rust_str(f'{m["cls"]}: {m["entry"]} ({m["src"]}, {m["how"]})')))
+               m["x"], m["y"], m["z"], m["disp_mask"], m["text_id"], m["line"], m["name_item"],
+               rust_str(f'{m["cls"]}: note {m["note"]} line {m["line"]} ({m["src"]}, {m["how"]})')))
     lines += ["];", "",
               "/// Item descriptions to extend: (ItemLot category, item id, [goods ids of the notes",
               "/// listing it, one per class]).",
@@ -556,14 +590,18 @@ def write_rust(classes, markers, placer, report):
               "pub const NOTE_TEXTS: &[NoteText] = &["]
     item = lambda i: "Item { category: %d, id: %d, flag: %d }" % i
     for note, intro, sections in note_texts(classes, report):
-        lines.append(f"    NoteText {{ note: {note}, intro: {rust_str(intro)}, sections: &[")
-        for heading, entries in sections:
-            lines.append(f"        NoteSection {{ heading: {rust_str(heading)}, entries: &[")
-            for name, loc, items, first in entries:
-                lines.append(f"            NoteEntry {{ name: {rust_str(name)}, location: {rust_str(loc)}, "
+        lines.append(f"    NoteText {{ note: {note}, intro_note: {intro}, sections: &[")
+        for kind, source, entries in sections:
+            lines.append(f"        NoteSection {{ kind: {kind}, source: {source}, entries: &[")
+            for line, named, items, first in entries:
+                lines.append(f"            NoteEntry {{ line: {line}, name_item: {named}, "
                              f"items: &[{', '.join(map(item, items))}], new_group: {str(first).lower()} }},")
             lines.append("        ] },")
         lines.append("    ] },")
+    lines += ["];", ""]
+    lines += ["/// Spell rune tiers' map icons: (class, tier, icon id of the rune's detail image).",
+              "pub const RUNE_ART: &[(&str, &str, u16)] = &["]
+    lines += [f"    ({rust_str(c)}, {rust_str(t)}, {i})," for c, t, i in rune_art(classes)]
     lines += ["];", ""]
     open(common.GENERATED_RS, "w", encoding="utf-8").write("\n".join(lines))
 

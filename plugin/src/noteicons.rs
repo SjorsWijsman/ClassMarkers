@@ -22,8 +22,8 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
-const TEXTURES: &str = "01_common.tpf.dcx";
-const LAYOUTS: &str = "01_common.sblytbnd.dcx";
+pub(crate) const TEXTURES: &str = "01_common.tpf.dcx";
+pub(crate) const LAYOUTS: &str = "01_common.sblytbnd.dcx";
 const STAMP: &str = "class_markers_icons.stamp";
 /// Prefix of our atlas entries; the note's goods id follows.
 pub const NAME_PREFIX: &str = "MENU_ItemIcon_CM_";
@@ -64,7 +64,6 @@ pub fn prepare(dll_dir: &Path) -> Available {
 
 fn update(dll_dir: &Path, ours: &Path, theirs: &Path) -> Result<Available, String> {
     // Our icons, and a stamp of everything the copies are built from.
-    let dir = dll_dir.join("icons").join("notes");
     let mut icons: Vec<(u32, Rgba)> = Vec::new();
     let mut stamp = format!("v{}", env!("CARGO_PKG_VERSION"));
     for f in [TEXTURES, LAYOUTS] {
@@ -72,7 +71,7 @@ fn update(dll_dir: &Path, ours: &Path, theirs: &Path) -> Result<Available, Strin
         stamp += &format!("|{}:{}:{:?}", f, m.len(), m.modified().ok());
     }
     for note in NOTES {
-        let path = dir.join(file_name(note.class, note.which));
+        let path = crate::iconcache::icon_path(dll_dir, "notes", &file_name(note.class, note.which));
         let Ok(bytes) = fs::read(&path) else { continue };
         match decode_png(&bytes) {
             Ok(img) => {
@@ -108,7 +107,7 @@ fn fnv(b: &[u8]) -> u64 {
     b.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u64).wrapping_mul(0x100_0000_01b3))
 }
 
-fn u32_at(b: &[u8], at: usize) -> u32 {
+pub(crate) fn u32_at(b: &[u8], at: usize) -> u32 {
     u32::from_le_bytes(b[at..at + 4].try_into().unwrap())
 }
 fn put_u32(b: &mut [u8], at: usize, v: u32) {
@@ -119,7 +118,7 @@ fn put_u64(b: &mut [u8], at: usize, v: u64) {
 }
 
 /// The contents of a zlib (DFLT) DCX file.
-fn undcx(file: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn undcx(file: &[u8]) -> Result<Vec<u8>, String> {
     if file.len() < 0x4C || &file[..4] != b"DCX\0" || &file[0x28..0x2C] != b"DFLT" {
         return Err("not a zlib DCX file".into());
     }
@@ -139,9 +138,9 @@ fn redcx(template: &[u8], data: &[u8], level: u8) -> Vec<u8> {
 }
 
 /// One file in a BND4 binder: where its header entry is and where its data is.
-struct BndFile {
+pub(crate) struct BndFile {
     entry: usize,
-    data: std::ops::Range<usize>,
+    pub(crate) data: std::ops::Range<usize>,
 }
 
 /// Layout of a BND4 header entry for its format flags: (offset of the uncompressed size if any,
@@ -151,7 +150,7 @@ fn bnd4_fields(fmt: u8) -> (Option<usize>, usize, bool) {
     (has_usize.then_some(16), if has_usize { 24 } else { 16 }, fmt & 0x10 != 0)
 }
 
-fn bnd4(b: &[u8]) -> Result<Vec<BndFile>, String> {
+pub(crate) fn bnd4(b: &[u8]) -> Result<Vec<BndFile>, String> {
     if b.len() < 0x40 || &b[..4] != b"BND4" {
         return Err("not a BND4 binder".into());
     }
@@ -172,13 +171,13 @@ fn bnd4(b: &[u8]) -> Result<Vec<BndFile>, String> {
 }
 
 /// A texture in a TPF: its header entry and data.
-struct Texture {
+pub(crate) struct Texture {
     entry: usize,
-    name: String,
-    data: std::ops::Range<usize>,
+    pub(crate) name: String,
+    pub(crate) data: std::ops::Range<usize>,
 }
 
-fn tpf(b: &[u8]) -> Result<Vec<Texture>, String> {
+pub(crate) fn tpf(b: &[u8]) -> Result<Vec<Texture>, String> {
     if b.len() < 0x10 || &b[..4] != b"TPF\0" {
         return Err("not a TPF texture file".into());
     }

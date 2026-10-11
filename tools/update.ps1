@@ -1,9 +1,9 @@
 # Brings Class Markers up to date with the installed Convergence (run by Update.bat):
 #   1. tools/generate.py   - re-read Convergence's files (markers, notes, descriptions)
-#   2. tools/note_icons.py - refresh the icons nobody edited, add icons for new notes
-#   3. build the plugin and copy ClassMarkers.dll to the project root
-#   4. tools/profiles.ps1  - put our entries back in Convergence's launch profiles (an update
+#   2. build the plugin and copy ClassMarkers.dll to the project root
+#   3. tools/profiles.ps1  - put our entries back in Convergence's launch profiles (an update
 #                            replaces them)
+# The icons need nothing: the plugin remakes them from Convergence's art when that changes.
 # Needs Python (with the packages from the README) and Rust (cargo).
 
 $ErrorActionPreference = 'Stop'
@@ -28,7 +28,6 @@ foreach ($tool in 'python', 'cargo') {
 Push-Location $root
 try {
     Step "Reading Convergence's files" { python tools\generate.py }
-    Step "Icons" { python tools\note_icons.py }
     Step "Building the plugin" { cargo build --release --manifest-path plugin\Cargo.toml }
     Copy-Item plugin\target\release\ClassMarkers.dll ClassMarkers.dll -Force
     Write-Host "  copied ClassMarkers.dll"

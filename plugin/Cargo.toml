@@ -1,7 +1,8 @@
 [package]
 name = "class_markers"
-version = "0.10.2"
+version = "1.0.0"
 edition = "2021"
+license = "MIT"
 
 [lib]
 name = "ClassMarkers"
@@ -9,9 +10,11 @@ name = "ClassMarkers"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+bcdec_rs = "0.2.0"
 # Elden Ring structures (inventory, task system), pinned to the revision this was written against.
 eldenring = { git = "https://github.com/vswarte/fromsoftware-rs", rev = "59fbd3b" }
 fromsoftware-shared = { git = "https://github.com/vswarte/fromsoftware-rs", rev = "59fbd3b" }
+image = { version = "0.25.10", default-features = false }
 intel_tex_2 = "0.5.0"
 miniz_oxide = "0.9.1"
 png = "0.18.1"

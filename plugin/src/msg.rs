@@ -249,6 +249,23 @@ fn patch_and_watch(
     Ok(ours)
 }
 
+/// The texts `ids` from a text family's layers (slots, lowest first; a higher layer wins), as
+/// the game has them now.
+pub fn read_texts(slots: &[usize], ids: &std::collections::HashSet<i32>) -> Result<HashMap<i32, String>, String> {
+    let repo = repository()?;
+    let mut out = HashMap::new();
+    for &s in slots {
+        if let Some(slot) = loaded_slot(repo, s) {
+            for (id, text) in unsafe { read_fmg(*slot) } {
+                if ids.contains(&id) {
+                    out.insert(id, String::from_utf16_lossy(&text));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Add `labels` to PlaceName as ids FIRST_TEXT_ID, FIRST_TEXT_ID + 1, ...
 /// On success the ids can be used as marker text; `on_lost` runs if they are lost later.
 pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> Result<(), String> {

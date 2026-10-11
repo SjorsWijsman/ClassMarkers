@@ -15,3 +15,13 @@ convergence_path.txt
 
 # The plugin's generated world map movie (me3 package), rebuilt at every start
 mod/
+
+# Release zips (tools/package.ps1)
+dist/
+
+# Full copy of Convergence's note texts (generated for review, not ours to publish)
+notes_comparison.md
+
+# Generator reports (written by tools/generate.py; quote Convergence's note texts)
+matching_report.md
+matching_review.md

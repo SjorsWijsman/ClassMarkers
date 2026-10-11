@@ -17,22 +17,22 @@ fenced entry added to Convergence's launch profiles).
 
 ## Icons
 
-All icons are plain PNGs in `icons/`, read by the plugin at every start: edit or replace them and
-restart the game.
+The plugin makes every icon itself from Convergence's own art when the game starts
+(`plugin/src/iconcache.rs`: the class notes from the menu atlas, the runes from their detail
+images), so this repo and the releases contain none of it. They're cached in `mod/icons/` and
+remade only when Convergence's menu files, `icons/colors.txt` or an override change (a few seconds).
 
-| Folder | What | Starting point |
-|---|---|---|
-| `icons/map/` | Map markers: `<Class> (path).png` / `(weapons).png`, shown exactly as they are (any square PNG, drawn ~84 px) | `python tools/note_icons.py` exports Convergence's note icons, tail included, the paper at the centre, with a thin uneven black outline and a glow in the class colour baked in |
-| `icons/map/` | Spell rune markers, one per tier: `<Class> (<Tier> rune).png`, e.g. `Stormcaller (Shining rune).png` (falls back to the path note's icon) | `python tools/note_icons.py` exports each rune's detail image, with the same outline and glow |
-| `icons/notes/` | Next to the class names in item descriptions: `<Class> (path).png` / `(weapons).png`; each class name takes the most vivid colour of its icon, or its line in `icons/colors.txt` | `python tools/note_icons.py` exports Convergence's note icons, cut to sit on the baseline |
+| File (in `mod/icons/`, overridable in `icons/`) | What |
+|---|---|
+| `notes/<Class> (path).png` / `(weapons).png` | Next to the class names in item descriptions and notes: the note without its tail, two thirds of a 96 px square, on its bottom edge (a text box puts an image's bottom on the baseline; 96 image px = 32 screen px) |
+| `map/<Class> (path).png` / `(weapons).png` | Map markers: the whole note, its paper at the centre, a thin black outline and a glow in the class colour (any square PNG, drawn ~84 px) |
+| `map/<Class> (<Tier> rune).png` | Spell rune markers, one per tier, from the rune's detail image, same outline and glow |
 
-Class colours (description text and map glow) come from the class's description icon; a line in
-`icons/colors.txt` (`Class = #RRGGBB`) overrides one. A missing file falls back to the map's stock
-icon or the note's own icon. Note icons can be any
-size and shape: 96 image pixels are drawn as 32 screen pixels. The description box puts the
-image's bottom on the text baseline and grows the line upward for anything taller, so the exported
-icons are cut like a letter: no tail, no margins, two thirds of a 96 px square, resting on its
-bottom edge. Changing note icons costs a few seconds once at the next start.
+To change one, copy it from `mod/icons/` to the same place under `icons/` and edit it there: a
+file in `icons/` always wins. Class colours (description text and map glow) are the most vivid
+colour of the class's `notes/` icon; a line in `icons/colors.txt` (`Class = #RRGGBB`) overrides
+one. The rune markers' icons are made with the game's Oodle; if it isn't loaded yet when the
+plugin starts, they're made on a thread and used from the next start.
 
 ## Layout
 
@@ -41,12 +41,10 @@ bottom edge. Changing note icons costs a few seconds once at the next start.
 | `plugin/` | Rust DLL. Grows `WorldMapPointParam` and the PlaceName text in memory at startup. |
 | `plugin/src/generated.rs` | Marker data, written by `tools/generate.py`. Don't edit by hand. |
 | `tools/generate.py` | Reads Convergence's files and writes `generated.rs`. |
-| `icons/` | Our icons, read by the plugin at every start (see Icons above). |
-| `tools/note_icons.py` | Exports Convergence's note icons into `icons/notes/` and `icons/map/` (keeps existing files; `--force` overwrites). |
+| `icons/` | Overrides for the generated icons, and `colors.txt` (see Icons above). |
 | `tools/profiles.ps1` | Used by `Install.bat` / `Uninstall.bat`. |
-| `tools/update.ps1` | Used by `Update.bat`: generate, icons, build, profiles. |
-| `icons/exported.json` | Hashes of the icons `note_icons.py` wrote, to tell edited icons apart. |
-| `mod/` | Our me3 package (generated, not in git): the world map movie and menu icon textures with our icons. |
+| `tools/update.ps1` | Used by `Update.bat`: generate, build, profiles. |
+| `mod/` | Made by the plugin (not in git): our me3 package (world map movie and menu icon textures with our icons) and the icon cache (`mod/icons/`). |
 | `available_map_icons.png` | Every icon the map can show, with its icon id. |
 
 ## Setup on a new machine
@@ -61,8 +59,37 @@ bottom edge. Changing note icons costs a few seconds once at the next start.
    `ConvergenceER\ClassMarkers` to this folder. Start the game with `Start_Convergence.bat`.
 
 After a Convergence update: close the game and run `Update.bat`. It re-reads Convergence's files,
-refreshes the icons nobody edited (edited ones are kept, see `icons/exported.json`), rebuilds the
-plugin and puts it back in the launch profiles (an update replaces them).
+rebuilds the plugin and puts it back in the launch profiles (an update replaces them). The icons
+remake themselves at the next start.
+
+## License and credits
+
+The code is MIT (see `LICENSE`). Nothing of ELDEN RING's or The Convergence's art or text is in
+this repo or the releases: the plugin reads the class notes, item names and art from the game at
+startup. `plugin/src/generated.rs` holds only numbers derived from Convergence's data (ids, flags,
+positions, which note line an entry is) and the class names. Release zips list the Rust crates in
+the DLL in `THIRD-PARTY-NOTICES.md`.
+
+- The technique for growing game tables and text in memory follows
+  [Map For Goblins - DLL](https://github.com/VirusAlex/ERR-MapForGoblins-DLL) by VirusAlex (MIT).
+- Game structures: [fromsoftware-rs](https://github.com/vswarte/fromsoftware-rs) (MIT/Apache-2.0).
+- The Convergence by The Convergence team; ELDEN RING by FromSoftware.
+
+## Releases
+
+`tools/package.ps1` packs `dist/ClassMarkers-<version>.zip` for players: the DLL, `icons/`,
+`Install.bat`, `Uninstall.bat`, `tools/profiles.ps1` and `docs/player-readme.md` as its README,
+laid out to be unzipped into `ConvergenceER`. Installing from that folder needs no Python, Rust or
+`convergence_path.txt`.
+
+GitHub builds releases by itself (`.github/workflows/release.yml`): bump `version` in
+`plugin/Cargo.toml`, commit, then push a matching tag:
+
+    git tag v1.0.0
+    git push origin v1.0.0
+
+The workflow checks the tag matches the version, builds the plugin, packs the zip and attaches it
+to a new release with notes from the commits.
 
 ## How it works (short)
 
