@@ -272,16 +272,43 @@ CLASS_START = 3000
 START_GEAR = [(2, 0x10, 4), (3, 0x20, 4), (4, 0x40, 4), (1, 0x60, 7)]
 
 
+def class_start_events():
+    """{class number: [goods ids]} that an event gives a class at the start. Convergence does that
+    with $Event(N, ...) { EndIf(... !PlayersClass(X4_4)); ... DirectlyGivePlayerItem(ItemType.Goods,
+    X8_4, ...) ... }, started as InitializeEvent(slot, N, flag, class number, goods, ...). The class
+    number is the one CharaInitParam rows count with (CLASS_START + n)."""
+    import glob
+    events = {}   # event id -> argument indexes that are goods given
+    texts = [open(f, encoding="utf-8").read() for f in glob.glob(os.path.join(common.MOD, "event", "*.emevd.dcx.js"))]
+    for text in texts:
+        for m in re.finditer(r"\$Event\((\d+),[^{]*\{(.*?)\n\}\);", text, re.S):
+            body = m.group(2)
+            if "PlayersClass(X4_4)" in body:
+                given = [int(x) // 4 for x in re.findall(r"DirectlyGivePlayerItem\(ItemType\.Goods, X(\d+)_4", body)]
+                if given:
+                    events[int(m.group(1))] = given
+    out = defaultdict(list)
+    for text in texts:
+        for event, args in re.findall(r"InitializeEvent\(\d+, (\d+), ([-\d, ]+)\)", text):
+            if int(event) in events:
+                args = [int(a) for a in args.split(",")]
+                out[args[1]] += [args[i] for i in events[int(event)] if i < len(args) and args[i] > 0]
+    return out
+
+
 def starting_gear():
-    """{class name: [(category, item id)]} for every class you can pick at character creation."""
+    """{class name: [(category, item id)]} for every class you can pick at character creation:
+    its CharaInitParam gear plus the goods an event gives it at the start."""
     from param import rows
     menu = json.load(open(os.path.join(common.MENU_DIR, "GR_MenuText.fmg.json"), encoding="utf-8"))
     listed, _ = rows(os.path.join(common.REG_DIR, "CharMakeMenuListItemParam.param"))
     init, _ = rows(os.path.join(common.REG_DIR, "CharaInitParam.param"))
+    given = class_start_events()
     out = {}
     for rid, b in listed.items():
-        start = CLASS_START + rid - CLASS_LIST
-        if not 0 <= rid - CLASS_LIST < 100 or start not in init:
+        n = rid - CLASS_LIST
+        start = CLASS_START + n
+        if not 0 <= n < 100 or start not in init:
             continue
         name = menu.get(str(struct.unpack_from("<i", b, 4)[0]))
         gear = []
@@ -290,19 +317,64 @@ def starting_gear():
                 item = struct.unpack_from("<i", init[start], first + 4 * k)[0]
                 if item > 0:
                     gear.append((cat, item - item % 100 if cat == 2 else item))   # weapon: drop the upgrade level
+        gear += [(1, g) for g in given.get(n, [])]
         if name:
             out[name] = gear
     return out
 
 
+def rune_spells():
+    """{goods id: [(category, item id)]}: what using an item teaches. Convergence's spell runes
+    work like this: the goods' use effect (EquipParamGoods refId_default) is watched by an event,
+    $Event(N, ...) { WaitFor(CharacterHasSpEffect(10000, X0_4)); AwardItems...(X4_4); ... },
+    started as InitializeEvent(slot, N, effect, lot). Awarding a lot gives that ItemLotParam_map row
+    and the rows right after it, up to the first missing id."""
+    import glob
+    from param import rows
+    watchers = set()
+    calls = []
+    for f in glob.glob(os.path.join(common.MOD, "event", "*.emevd.dcx.js")):
+        text = open(f, encoding="utf-8").read()
+        for m in re.finditer(r"\$Event\((\d+),[^{]*\{(.*?)\n\}\);", text, re.S):
+            if re.search(r"WaitFor\(CharacterHasSpEffect\(10000, X0_4\)\);\s*AwardItems\w*\(X4_4\)", m.group(2)):
+                watchers.add(int(m.group(1)))
+        calls += re.findall(r"InitializeEvent\(\d+, (\d+), (\d+), (\d+)\)", text)
+    lot_of = {int(effect): int(lot) for event, effect, lot in calls if int(event) in watchers}
+    goods, _ = rows(os.path.join(common.REG_DIR, "EquipParamGoods.param"))
+    lots, _ = rows(os.path.join(common.REG_DIR, "ItemLotParam_map.param"))
+    out = {}
+    for gid, b in goods.items():
+        lot = lot_of.get(struct.unpack_from("<i", b, 0x04)[0])
+        items = []
+        while lot in lots:
+            ids = struct.unpack_from("<8i", lots[lot], 0)
+            cats = struct.unpack_from("<8i", lots[lot], 0x20)
+            items += [(c, i) for i, c in zip(ids, cats) if i > 0]
+            lot += 1
+        if items:
+            out[gid] = items
+    return out
+
+
 def class_captions(classes):
     """[((category, item id), [goods ids of the notes listing it])] for every item a class note
-    lists or a class starts with, one note per class, in class order (a starting item names the
-    class's weapons note for a weapon, else its path note). A plain weapon also covers its
-    infused variants (base + affinity * 100), which have their own descriptions; armor, talismans
-    and goods are exact ids."""
+    lists, a listed rune teaches, or a class starts with, one note per class, in class order (a
+    starting item names the class's weapons note for a weapon, else its path note). A plain weapon
+    also covers its infused variants (base + affinity * 100), which have their own descriptions;
+    armor, talismans and goods are exact ids."""
     import locate
     start = starting_gear()
+    teaches = rune_spells()
+    # Rune families: "Faint/Shimmering/... Rune of Night" are one school. The notes list the
+    # school's later runes; a class gets every rune of the schools its notes list.
+    goods_names = {}
+    for f in ("GoodsName", "GoodsName_dlc01", "GoodsName_dlc02"):
+        goods_names.update({int(k): v for k, v in
+                            json.load(open(os.path.join(common.ITEM_DIR, f + ".fmg.json"), encoding="utf-8")).items() if v})
+    family = lambda gid: goods_names.get(gid, "").split(" ", 1)[-1]
+    by_family = defaultdict(set)
+    for gid in teaches:
+        by_family[family(gid)].add(gid)
     missing = [c["name"] for c in classes if c["name"] not in start]
     if missing:
         print("No starting class found for:", ", ".join(missing))
@@ -317,7 +389,12 @@ def class_captions(classes):
         items = []                                # (category, item id, note)
         for kind, name, loc, siblings in locate.note_entries(c):
             note = (kind == "weapon" and c.get("weaponsId")) or c["pathId"]
-            items += [(cat, item, note) for _, item, cat in locate.resolve_ids(kind, name, siblings)]
+            for _, item, cat in locate.resolve_ids(kind, name, siblings):
+                items.append((cat, item, note))
+                if cat == 1 and item in teaches:
+                    for rune in by_family[family(item)]:
+                        items.append((1, rune, note))
+                        items += [(c, i, note) for c, i in teaches[rune]]
         for cat, item in start.get(c["name"], []):
             items.append((cat, item, (cat == 2 and c.get("weaponsId")) or c["pathId"]))
         for cat, item, note in items:

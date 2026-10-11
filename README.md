@@ -3,7 +3,7 @@
 Adds world-map markers for the items listed in The Convergence's class notes
 ("Note: Path of the …" / "Note: Weapons for …"): spell runes, armor and weapons, labelled with the
 item name and its location. Item descriptions start with a line naming the classes whose notes
-list the item or that start with it, each with its note's icon and in a colour taken from it. A note's markers show while that note is in
+list the item (or a rune that teaches it) or that start with it, each with its note's icon and in a colour taken from it. A note's markers show while that note is in
 your inventory (put a note in the storage chest to stop tracking that class, take it out to track
 it again); a marker hides once you've picked its item up there, or have it in your inventory or
 storage chest. Markers use our own icons (sword = weapon, helm = armor, rune = spell rune).
