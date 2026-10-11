@@ -1,6 +1,6 @@
-![Class Markers: see where to go, track what you found, identify class items and spells](docs/class_markers_banner.png)
-
 # Class Markers for The Convergence
+
+![Class Markers: see where to go, track what you found, identify class items and spells](docs/class_markers_banner.png)
 
 [![Latest release](https://img.shields.io/github/v/release/SjorsWijsman/ClassMarkers)](https://github.com/SjorsWijsman/ClassMarkers/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
