@@ -23,7 +23,7 @@ mod scan;
 use std::sync::OnceLock;
 
 /// Our own map icons, if they could be added (see gfx.rs).
-static ICONS: OnceLock<std::collections::HashMap<u32, u16>> = OnceLock::new();
+static ICONS: OnceLock<gfx::MapIcons> = OnceLock::new();
 /// Our class note icons for item descriptions (see noteicons.rs).
 pub(crate) static NOTE_ICONS: OnceLock<noteicons::Available> = OnceLock::new();
 

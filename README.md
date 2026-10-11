@@ -20,9 +20,12 @@ restart the game.
 | Folder | What | Starting point |
 |---|---|---|
 | `icons/map/` | Map markers: `<Class> (path).png` / `(weapons).png`, shown exactly as they are (any square PNG, drawn ~84 px) | `python tools/note_icons.py` exports Convergence's note icons, tail included, the paper at the centre, with a thin uneven black outline and a glow in the class colour baked in |
-| `icons/notes/` | Next to the class names in item descriptions: `<Class> (path).png` / `(weapons).png`; each class name takes the most vivid colour of its icon, or its line in `colors.txt` (`Class = #RRGGBB`) | `python tools/note_icons.py` exports Convergence's note icons, cut to sit on the baseline |
+| `icons/map/` | Spell rune markers, one per tier: `<Class> (<Tier> rune).png`, e.g. `Stormcaller (Shining rune).png` (falls back to the path note's icon) | `python tools/note_icons.py` exports each rune's detail image, with the same outline and glow |
+| `icons/notes/` | Next to the class names in item descriptions: `<Class> (path).png` / `(weapons).png`; each class name takes the most vivid colour of its icon, or its line in `icons/colors.txt` | `python tools/note_icons.py` exports Convergence's note icons, cut to sit on the baseline |
 
-A missing file falls back to the map's stock icon or the note's own icon. Note icons can be any
+Class colours (description text and map glow) come from the class's description icon; a line in
+`icons/colors.txt` (`Class = #RRGGBB`) overrides one. A missing file falls back to the map's stock
+icon or the note's own icon. Note icons can be any
 size and shape: 96 image pixels are drawn as 32 screen pixels. The description box puts the
 image's bottom on the text baseline and grows the line upward for anything taller, so the exported
 icons are cut like a letter: no tail, no margins, two thirds of a 96 px square, resting on its

@@ -8,6 +8,9 @@ descriptions, the stock icon on the map):
                                             full size, tail included, framed so the paper is the
                                             image's centre, with an uneven black outline and a glow
                                             in the class colour, like the map's own icons
+    icons/map/<Class> (<Tier> rune).png     the class's spell rune markers, one per tier
+                                            ("Stormcaller (Shining rune).png"): that rune's detail
+                                            image, with the same outline and glow
 
 The description box puts an image's bottom on the text baseline and grows the line upward for
 anything taller, so the export is cut to sit like a letter: the hanging tail below the paper is
@@ -51,6 +54,8 @@ OUTLINE_SOFT = 0.5   # blur of the outline edge, px
 OUTLINE_COLOUR = (12, 10, 8)
 GLOW_RADIUS, GLOW_GAIN = 0.035, 1.6
 DEFAULT_GLOW = (224, 200, 154)
+RUNE_PX = 168          # rune images are scaled to this (the note map icons' size) before outline and glow
+RUNE_SOLID = 160      # rune art fades out in a dark haze: the outline follows only its solid part
 
 
 def file_name(cls, which):
@@ -153,10 +158,10 @@ def class_colour(icon_path):
 
 
 def colour_overrides():
-    """{class: (r, g, b)} from icons/notes/colors.txt (Class = #RRGGBB), as the plugin reads it."""
+    """{class: (r, g, b)} from icons/colors.txt (Class = #RRGGBB), as the plugin reads it."""
     out = {}
     try:
-        lines = open(os.path.join(OUT_DIR, "colors.txt"), encoding="utf-8").read().splitlines()
+        lines = open(os.path.join(common.ROOT, "icons", "colors.txt"), encoding="utf-8").read().splitlines()
     except OSError:
         return out
     for line in lines:
@@ -167,13 +172,14 @@ def colour_overrides():
     return out
 
 
-def map_icon(img, glow, seed):
-    """For map markers, like the map's own icons: the whole note, tail included, at full size,
-    framed so the centre of the paper is the image's centre; around it an uneven black outline (its
-    thickness wanders, as if drawn by hand) and a soft glow in `glow` colour. `seed` makes the
-    outline's wobble the same on every export."""
-    paper = paper_box(img) or (0, 0, img.width, img.height)
-    art = img.getchannel("A").point(lambda a: 255 if a > 16 else 0).getbbox() or paper
+def map_icon(img, glow, seed, on_paper=True, solid=40):
+    """For map markers, like the map's own icons: the whole image at full size, framed so the
+    centre of a note's paper (`on_paper`; tail included in the image) or of the whole art is the
+    image's centre; around it an uneven black outline (its thickness wanders, as if drawn by hand)
+    and a soft glow in `glow` colour. The outline follows the pixels more opaque than `solid` (0-255).
+    `seed` makes the outline's wobble the same on every export."""
+    art = img.getchannel("A").point(lambda a: 255 if a > 16 else 0).getbbox() or (0, 0, img.width, img.height)
+    paper = (paper_box(img) if on_paper else None) or art
     cx, cy = (paper[0] + paper[2]) / 2, (paper[1] + paper[3]) / 2
     reach = max(cx - art[0], art[2] - cx, cy - art[1], art[3] - cy)
     side = 2 * int(reach + 0.999) + 2
@@ -183,7 +189,7 @@ def map_icon(img, glow, seed):
     note.alpha_composite(img, (round(full / 2 - cx), round(full / 2 - cy)))
 
     # Outline: a thin rim everywhere, thickened where a smooth random field is high.
-    shape = note.getchannel("A").point(lambda a: 255 if a > 40 else 0)
+    shape = note.getchannel("A").point(lambda a: 255 if a > solid else 0)
     thin = shape.filter(ImageFilter.MaxFilter(2 * OUTLINE_THIN + 1))
     thick = shape.filter(ImageFilter.MaxFilter(2 * OUTLINE_THICK + 1))
     rng = random.Random(seed)
@@ -208,13 +214,65 @@ def map_icon(img, glow, seed):
     return out
 
 
+def detail_images(wanted):
+    """{icon id: RGBA image} from the items' large detail images (menu/hi/00_solo.tpfbhd/bdt,
+    menu_knowledge_<id>), which exist for every rune tier; many small atlas icons are blank."""
+    bhd = open(os.path.join(MENU_HI, "00_solo.tpfbhd"), "rb").read()
+    count = struct.unpack_from("<i", bhd, 0x0C)[0]
+    hsize = struct.unpack_from("<q", bhd, 0x20)[0]
+    fmt = int(f"{bhd[0x31]:08b}"[::-1], 2)
+    index = {}
+    for i in range(count):
+        o = 0x40 + i * hsize
+        csize, = struct.unpack_from("<q", bhd, o + 8)
+        q = o + 16 + (8 if fmt & 0x20 else 0)
+        off, = struct.unpack_from("<I", bhd, q)
+        q += 4 + (4 if fmt & 0x02 else 0)
+        no, = struct.unpack_from("<I", bhd, q)
+        index[bhd[no:bhd.index(b"\0", no)].decode("shift_jis").lower().split("\\")[-1]] = (off, csize)
+    out = {}
+    with open(os.path.join(MENU_HI, "00_solo.tpfbdt"), "rb") as bdt:
+        for icon in wanted:
+            hit = index.get(f"menu_knowledge_{icon:05}.tpf.dcx")
+            if hit:
+                bdt.seek(hit[0])
+                raw = bdt.read(hit[1])
+                tpf = dcx(raw) if raw[:4] == b"DCX\0" else raw
+                off, size = struct.unpack_from("<Ii", tpf, 0x10)
+                out[icon] = Image.open(io.BytesIO(tpf[off:off + size])).convert("RGBA")
+    return out
+
+
+def rune_icons(icon_of):
+    """{(class, tier): rune icon id}: for each class whose notes list spell runes, every tier of
+    its school ("Shimmering" from "Shimmering Rune of the Storm")."""
+    import generate
+    names = {}
+    for f in ("GoodsName", "GoodsName_dlc01", "GoodsName_dlc02"):
+        names.update({int(k): v for k, v in json.load(open(os.path.join(common.ITEM_DIR, f + ".fmg.json"),
+                                                            encoding="utf-8")).items() if v})
+    by_school = {}
+    for g in generate.rune_spells():
+        if g in names and icon_of.get(g):
+            tier, school = names[g].split(" ", 1)
+            by_school.setdefault(school, {})[tier] = icon_of[g]
+    out = {}
+    for c in json.load(open(os.path.join(common.CACHE, "classes.json"), encoding="utf-8")):
+        for rune, _ in c["runes"]:
+            for tier, icon in by_school.get(rune.split(" ", 1)[-1], {}).items():
+                out[(c["name"], tier)] = icon
+    return out
+
+
 def main():
     size = int(sys.argv[sys.argv.index("--size") + 1]) if "--size" in sys.argv else 96
     force = "--force" in sys.argv
     from generate import goods_icons
     icon_of = goods_icons()
     listed = notes()
+    runes = rune_icons(icon_of)
     images = atlas_icons({icon_of.get(n) for n, _, _ in listed})
+    rune_images = detail_images(set(runes.values()))
     overrides = colour_overrides()
 
     def glow_of(cls):
@@ -244,6 +302,22 @@ def main():
                 make(img, cls, which).save(path)
                 written += 1
         print(f"Note icons in {out_dir}: wrote {written}, kept {kept} existing")
+
+    # Rune markers: each tier of the class's school rune (its detail image), framed on the whole art.
+    written = kept = 0
+    for (cls, tier), icon in runes.items():
+        which = f"{tier} rune"
+        path = os.path.join(MAP_DIR, file_name(cls, which))
+        if os.path.exists(path) and not force:
+            kept += 1
+        elif icon in rune_images:
+            art = rune_images[icon]
+            art = art.crop(art.getchannel("A").getbbox() or (0, 0, art.width, art.height))
+            scale = RUNE_PX / max(art.width, art.height)
+            art = art.resize((round(art.width * scale), round(art.height * scale)), Image.LANCZOS)
+            map_icon(art, glow_of(cls), f"{cls} ({which})", on_paper=False, solid=RUNE_SOLID).save(path)
+            written += 1
+    print(f"Rune icons in {MAP_DIR}: wrote {written}, kept {kept} existing")
 
 
 if __name__ == "__main__":

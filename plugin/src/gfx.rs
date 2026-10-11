@@ -12,9 +12,10 @@
 //! wrong the copy is made identical to Convergence's file and the markers use a stock icon.
 //!
 //! Each marker shows its class note's icon, read at every start from
-//! ClassMarkers/icons/map/<Class> (path|weapons).png and used as it is (tools/note_icons.py
-//! exports them with outline and glow; any square PNG works). A note without a file uses the
-//! stock icon.
+//! ClassMarkers/icons/map/<Class> (path|weapons).png, and a spell rune marker the icon of its rune's
+//! tier, <Class> (<Tier> rune).png. They're used as they are (tools/note_icons.py exports them with
+//! outline and glow; any square PNG works). A rune marker without a tier icon uses its note's icon;
+//! a note without a file uses the stock icon.
 
 use crate::generated::NOTES;
 use crate::log;
@@ -54,34 +55,45 @@ pub fn note_icon_path(dll_dir: &Path, class: &str, which: &str) -> std::path::Pa
     dll_dir.join("icons").join("map").join(format!("{} ({}).png", class, which))
 }
 
+/// Spell rune tiers, the first word of a rune's name ("Shimmering Rune of the Storm").
+pub const RUNE_TIERS: [&str; 6] = ["Faint", "Shimmering", "Glowing", "Shining", "Radiant", "Shadow"];
+
+/// Our map icons: (note goods id, rune tier or "" for the note's own icon) -> icon id.
+pub type MapIcons = HashMap<(u32, &'static str), u16>;
+
 /// Rebuild our copy of the world map movie. `dll_dir` = ConvergenceER\ClassMarkers.
-/// Returns note goods id -> icon id for the notes whose icon was added (empty = stock icons).
-pub fn prepare(dll_dir: &Path) -> HashMap<u32, u16> {
+/// Returns the icons that were added (empty = stock icons).
+pub fn prepare(dll_dir: &Path) -> MapIcons {
     let ours = dll_dir.join("mod").join("menu").join(MOVIE);
     let theirs = dll_dir.join("..").join("mod").join("menu").join(MOVIE);
     if !ours.exists() {
         log!("Icons: {} is missing (run Install.bat); using a stock icon", ours.display());
-        return HashMap::new();
+        return MapIcons::new();
     }
     let src = match fs::read(&theirs) {
         Ok(s) => s,
         Err(e) => {
             log!("Icons: can't read {} ({}); using a stock icon", theirs.display(), e);
-            return HashMap::new();
+            return MapIcons::new();
         }
     };
 
     let mut icons = Vec::new();
-    let mut notes = Vec::new(); // (note goods id, index in `icons`)
+    let mut keys = Vec::new(); // (key, index in `icons`)
     for note in NOTES {
-        let path = note_icon_path(dll_dir, note.class, note.which);
-        let Ok(bytes) = fs::read(&path) else { continue };
-        match decode_png(&bytes) {
-            Ok(img) => {
-                notes.push((note.goods_id, icons.len()));
-                icons.push(lossless2_body(&img));
+        // The note's icon, and (spell runes are listed in the "path" note) one per rune tier.
+        let tiers: &[&'static str] = if note.which == "path" { &RUNE_TIERS } else { &[] };
+        for tier in std::iter::once("").chain(tiers.iter().copied()) {
+            let file = if tier.is_empty() { note.which.to_string() } else { format!("{} rune", tier) };
+            let path = note_icon_path(dll_dir, note.class, &file);
+            let Ok(bytes) = fs::read(&path) else { continue };
+            match decode_png(&bytes) {
+                Ok(img) => {
+                    keys.push(((note.goods_id, tier), icons.len()));
+                    icons.push(lossless2_body(&img));
+                }
+                Err(e) => log!("Icons: can't read {} ({}); using another icon there", path.display(), e),
             }
-            Err(e) => log!("Icons: can't read {} ({}); that note's markers use a stock icon", path.display(), e),
         }
     }
 
@@ -91,17 +103,24 @@ pub fn prepare(dll_dir: &Path) -> HashMap<u32, u16> {
         Err(e) => {
             log!("Icons: can't add them to the world map ({}); using a stock icon", e);
             let _ = fs::write(&ours, &src); // never leave a stale or broken copy in the way
-            return HashMap::new();
+            return MapIcons::new();
         }
     };
     if fs::read(&ours).ok().as_deref() != Some(&out[..]) {
         if let Err(e) = fs::write(&ours, &out) {
             log!("Icons: can't write {} ({}); using a stock icon", ours.display(), e);
-            return HashMap::new();
+            return MapIcons::new();
         }
     }
-    log!("Icons: {} class note icons added as icon ids {}-{}", icons.len(), first, first + icons.len() as u16 - 1);
-    notes.into_iter().map(|(note, i)| (note, first + i as u16)).collect()
+    let runes = keys.iter().filter(|((_, tier), _)| !tier.is_empty()).count();
+    log!(
+        "Icons: {} note and {} rune icons added as icon ids {}-{}",
+        icons.len() - runes,
+        runes,
+        first,
+        first + icons.len() as u16 - 1
+    );
+    keys.into_iter().map(|(key, i)| (key, first + i as u16)).collect()
 }
 
 struct Tag {

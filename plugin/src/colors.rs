@@ -1,6 +1,7 @@
 //! A text colour per class for the class line in item descriptions, taken from the class's note
 //! icon (ClassMarkers/icons/notes/<Class> (path).png, else its weapons icon), so a swapped icon
-//! brings its colour along. Lines in ClassMarkers/icons/notes/colors.txt override it:
+//! brings its colour along. Used for the class names in item descriptions; the map icons' glow is
+//! baked in the same colour by tools/note_icons.py. Lines in ClassMarkers/icons/colors.txt override it:
 //!
 //!     Servant of Rot = #9BC25A
 //!
@@ -36,7 +37,7 @@ pub fn class_colors(dll_dir: &Path) -> HashMap<&'static str, String> {
             }
         }
     }
-    if let Ok(text) = std::fs::read_to_string(dir.join(OVERRIDES)) {
+    if let Ok(text) = std::fs::read_to_string(dll_dir.join("icons").join(OVERRIDES)) {
         for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
             let Some((class, colour)) = line.split_once('=') else { continue };
             let (class, colour) = (class.trim(), colour.trim().to_uppercase());

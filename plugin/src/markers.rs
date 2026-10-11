@@ -1,6 +1,6 @@
 //! Marker definitions and their WORLD_MAP_POINT_PARAM_ST (256-byte) encoding.
 
-use std::collections::HashMap;
+use crate::gfx::MapIcons;
 
 pub const ROW_SIZE: usize = 256;
 
@@ -142,8 +142,9 @@ impl GenMarker {
 
     /// The marker's row: line 1 = the place, then our text ids `texts` = (label "<class> <type> -
     /// <item>", hint "Note: <where the note says>"), or just the place when there's no text of ours.
-    /// `icons`: note goods id -> our icon id (see gfx.rs); a note without one gets the stock icon.
-    pub fn row(&self, texts: Option<(i32, i32)>, icons: &HashMap<u32, u16>) -> Row {
+    /// `icons`: our icons (see gfx.rs): a spell rune marker gets its rune tier's icon, others (or
+    /// without one) the note's icon, else the stock icon.
+    pub fn row(&self, texts: Option<(i32, i32)>, icons: &MapIcons) -> Row {
         let line = |text_id| Line { text_id, text_type: 0 };
         let mut lines = Vec::new();
         if self.text_id >= 0 || texts.is_none() {
@@ -159,7 +160,13 @@ impl GenMarker {
             // Hidden until the visibility check (classes.rs) has seen that you own the note and
             // haven't obtained the item(s) yet.
             event_flag: ALWAYS_OFF_FLAG,
-            icon: icons.get(&self.note).copied().unwrap_or(STOCK_ICON),
+            icon: (self.kind == 1)
+                .then(|| self.name.split(' ').next().and_then(|t| crate::gfx::RUNE_TIERS.iter().find(|r| **r == t)))
+                .flatten()
+                .and_then(|tier| icons.get(&(self.note, *tier)))
+                .or_else(|| icons.get(&(self.note, "")))
+                .copied()
+                .unwrap_or(STOCK_ICON),
             area: self.area,
             grid_x: self.grid_x,
             grid_z: self.grid_z,
