@@ -1,7 +1,8 @@
 //! Decide which markers show: those of the class notes you own, for items you haven't obtained.
 //!
-//! Owning a note = it is in your inventory, read through the game's own data (GameDataMan) on
-//! the game's thread, so dropping a note hides its markers again. If the inventory can't be
+//! Owning a note = it is in your inventory (not the storage chest), read through the game's own
+//! data (GameDataMan) on the game's thread. So you choose which classes to track: move a note to
+//! the chest (or drop it) to hide its markers, take it back out to show them again. If the inventory can't be
 //! read, owning falls back to "any of the note's pickup flags is on" (see generated::NOTES).
 //!
 //! An item is obtained once you picked it up at the marked spot (its pickup flag is on), or it is
@@ -34,8 +35,9 @@ pub struct Watched {
     pub row: usize,
 }
 
-/// What you carry, in your inventory and storage chest, as (ItemLot category, id).
+/// What you have, as (ItemLot category, id): in your inventory, and in inventory or storage chest.
 struct Owned {
+    carried: HashSet<(u8, u32)>,
     items: HashSet<(u8, u32)>,
 }
 
@@ -44,8 +46,7 @@ impl Owned {
     fn read() -> Option<Owned> {
         let game_data = unsafe { GameDataMan::instance() }.ok()?;
         let player = &game_data.main_player_game_data;
-        let mut items = HashSet::new();
-        let mut add = |inventory: &eldenring::cs::InventoryItemsData| {
+        let add = |items: &mut HashSet<(u8, u32)>, inventory: &eldenring::cs::InventoryItemsData| {
             for e in inventory.items() {
                 let id = e.item_id.param_id();
                 let category = match e.item_id.category() {
@@ -64,19 +65,22 @@ impl Owned {
                 items.insert((category, id));
             }
         };
-        add(&player.equipment.equip_inventory_data.items_data);
+        let mut carried = HashSet::new();
+        add(&mut carried, &player.equipment.equip_inventory_data.items_data);
+        let mut items = carried.clone();
         if let Some(storage) = &player.storage {
-            add(&storage.items_data);
+            add(&mut items, &storage.items_data);
         }
-        Some(Owned { items })
+        Some(Owned { carried, items })
     }
 
     fn has(&self, category: u8, id: u32) -> bool {
         self.items.contains(&(category, id))
     }
 
+    /// The class notes in your inventory: a note in the storage chest doesn't count.
     fn notes(&self) -> BTreeSet<u32> {
-        NOTES.iter().map(|n| n.goods_id).filter(|&id| self.has(1, id)).collect()
+        NOTES.iter().map(|n| n.goods_id).filter(|&id| self.carried.contains(&(1, id))).collect()
     }
 }
 
