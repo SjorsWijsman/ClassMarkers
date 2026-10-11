@@ -66,9 +66,16 @@ fn run() {
 
     // Labels first: a marker must never point at text that doesn't exist.
     static ROWS: OnceLock<Vec<Option<usize>>> = OnceLock::new();
-    // Text ids: FIRST_TEXT_ID + i = marker i's label, FIRST_TEXT_ID + count + i = its note hint.
+    // Text ids from FIRST_TEXT_ID on: each marker's label and hint lines in turn; `ids[i]` are
+    // marker i's.
     let colours = log::dll_dir().map(|d| colors::class_colors(d)).unwrap_or_default();
-    let labels = markers.iter().map(|m| m.label_text(&colours)).chain(markers.iter().map(|m| m.hint_text())).collect();
+    let mut labels = Vec::new();
+    let mut ids: Vec<Vec<i32>> = Vec::new();
+    for m in markers {
+        let texts = m.texts(&colours);
+        ids.push((0..texts.len()).map(|k| msg::FIRST_TEXT_ID + (labels.len() + k) as i32).collect());
+        labels.extend(texts);
+    }
     let have_labels = match msg::add_labels(labels, || {
         // Labels lost: blank every text line of ours so only the place-name lines remain.
         for &row in ROWS.get().into_iter().flatten().flatten() {
@@ -91,8 +98,7 @@ fn run() {
         .iter()
         .enumerate()
         .map(|(i, m)| {
-            let texts = have_labels
-                .then_some((msg::FIRST_TEXT_ID + i as i32, msg::FIRST_TEXT_ID + (markers.len() + i) as i32));
+            let texts = have_labels.then_some(ids[i].as_slice());
             (m.block, m.row(texts, ICONS.get().unwrap_or(&Default::default())), m.label.to_string())
         })
         .collect();

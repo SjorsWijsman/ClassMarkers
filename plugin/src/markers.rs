@@ -13,6 +13,11 @@ pub const ALWAYS_OFF_FLAG: u32 = 6000;
 pub const EVENT_FLAG_OFFSET: usize = 0x04;
 /// Stock map icon for a marker whose note has no icon of ours (gfx.rs): 88, the round seal.
 pub const STOCK_ICON: u16 = 88;
+/// Longest hint line: the map cuts a marker line off past about 52 characters ("Found after
+/// defeating the Godskin Noble on the bridge" still fits after the icon); 40 reads better.
+const HINT_CHARS: usize = 40;
+/// Start of a wrapped hint line, to line up under the text after the first line's icon.
+const HINT_INDENT: &str = "     ";
 
 /// A class note (see tools/generate.py). You own it once any of `flags` is on: they are set when
 /// one of the item lots that hand out the note is picked up.
@@ -33,6 +38,21 @@ pub struct Item {
     pub category: u8,
     pub id: u32,
     pub flag: u32,
+}
+
+/// `words` filled into lines of at most `width` characters (a longer word gets a line of its own).
+fn wrap(words: &[&str], width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for w in words {
+        match lines.last_mut() {
+            Some(l) if l.chars().count() + 1 + w.chars().count() <= width => {
+                l.push(' ');
+                l.push_str(w);
+            }
+            _ => lines.push(w.to_string()),
+        }
+    }
+    lines
 }
 
 /// One generated marker (see tools/generate.py).
@@ -143,37 +163,47 @@ impl GenMarker {
         }
     }
 
-    /// Second text line: where the class note says to find it, after the note's icon (the same as
-    /// in item descriptions, smaller).
-    pub fn hint_text(&self) -> String {
+    /// The following text lines: where the class note says to find it, after the note's icon (the
+    /// same as in item descriptions, smaller). A marker line is cut off when too long, so a hint
+    /// is wrapped at word breaks, each line filled up to HINT_CHARS (none if the note gives no
+    /// hint).
+    pub fn hint_lines(&self) -> Vec<String> {
+        let hint = self.hint();
+        let words: Vec<&str> = hint.split_whitespace().collect();
+        if words.is_empty() {
+            return Vec::new();
+        }
+        let chunks = wrap(&words, HINT_CHARS);
         match self.note() {
-            // In the notes' heading colour (tracker.rs), so it reads as the note speaking.
-            Some(n) => format!(
-                "{}<font color=\"{}\">{}</font>",
-                crate::msg::note_img(n, crate::msg::MAP_ICON_PX),
-                crate::tracker::HEADING,
-                self.hint()
-            ),
-            None => format!("Note: {}", self.hint()),
+            // In the notes' heading colour (tracker.rs), so it reads as the note speaking. The
+            // icon starts the first line; the others are indented to line up under its text.
+            Some(n) => chunks
+                .iter()
+                .enumerate()
+                .map(|(k, c)| {
+                    let lead = if k == 0 { crate::msg::note_img(n, crate::msg::MAP_ICON_PX) } else { HINT_INDENT.to_string() };
+                    format!("{}<font color=\"{}\">{}</font>", lead, crate::tracker::HEADING, c)
+                })
+                .collect(),
+            None => chunks.iter().enumerate().map(|(k, c)| if k == 0 { format!("Note: {}", c) } else { c.clone() }).collect(),
         }
     }
 
-    /// The marker's row: our text ids `texts` = (label "<class> - <item>", hint "<note icon><where
-    /// the note says>"), or just the place when there's no text of ours.
+    /// The marker's text: the label, then the hint lines.
+    pub fn texts(&self, colours: &HashMap<&str, String>) -> Vec<String> {
+        std::iter::once(self.label_text(colours)).chain(self.hint_lines()).collect()
+    }
+
+    /// The marker's row: our text ids `texts` (label "<class> - <item>", then the hint lines
+    /// "<note icon><where the note says>"), or just the place when there's no text of ours.
     /// `icons`: our icons (see gfx.rs): a spell rune marker gets its rune tier's icon, others (or
     /// without one) the note's icon, else the stock icon.
-    pub fn row(&self, texts: Option<(i32, i32)>, icons: &MapIcons) -> Row {
+    pub fn row(&self, texts: Option<&[i32]>, icons: &MapIcons) -> Row {
         let line = |text_id| Line { text_id, text_type: 0 };
-        let mut lines = Vec::new();
-        match texts {
-            Some((label, hint)) => {
-                lines.push(line(label));
-                if !self.hint().is_empty() {
-                    lines.push(line(hint));
-                }
-            }
-            None => lines.push(line(self.text_id)),
-        }
+        let lines = match texts {
+            Some(ids) => ids.iter().take(8).map(|&id| line(id)).collect(),
+            None => vec![line(self.text_id)],
+        };
         Row {
             // Hidden until the visibility check (classes.rs) has seen that you own the note and
             // haven't obtained the item(s) yet.

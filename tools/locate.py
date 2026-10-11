@@ -436,6 +436,27 @@ def locate_shop(cat, item_id):
 
 
 # ---- resolution -------------------------------------------------------------
+def _from_events(lot, flag):
+    """Where an event script hands out `lot`: 2. tied to an entity in a map, else 3. when a flag
+    turns on (a boss or NPC defeated). None if neither."""
+    for script, line, nums in lot_in_events(lot):
+        for n in nums:
+            for m in maps_for_entity(n, script):
+                ms = msb(m)
+                if ms and n in ms["entity"]:
+                    p = ms["entity"][n]
+                    return {"how": "event", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag}
+    for script, line, nums in lot_in_events(lot):
+        for n in nums:
+            if n == lot:
+                continue
+            src = flag_source(n)
+            if src:
+                m, p = src
+                return {"how": "defeat", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag, "trigger": n}
+    return None
+
+
 def locate(cat, item_id, loc_text):
     results = []
     for param, own_lot, flag in LOTS.get((cat, item_id), []):
@@ -456,35 +477,18 @@ def locate(cat, item_id, loc_text):
                 break
         if found:
             continue
-        lot = next((l for l in chain if lot_in_events(l)), own_lot)
-        # 2. an event script that hands out the lot, tied to an entity in a map
-        for script, line, nums in lot_in_events(lot):
-            for n in nums:
-                for m in maps_for_entity(n, script):
-                    ms = msb(m)
-                    if ms and n in ms["entity"]:
-                        p = ms["entity"][n]
-                        results.append({"how": "event", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag})
-                        found = True
-                        break
-                if found:
-                    break
-            if found:
-                break
-        if not found:
-            # 3. the lot is handed out when a flag turns on (boss/NPC defeated)
-            for script, line, nums in lot_in_events(lot):
-                for n in nums:
-                    if n == lot:
-                        continue
-                    src = flag_source(n)
-                    if src:
-                        m, p = src
-                        results.append({"how": "defeat", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag, "trigger": n})
-                        found = True
-                        break
-                if found:
-                    break
+        # 2./3. an event script that hands out the lot. A lot id can also turn up in a script as
+        # some other number (an enemy, an animation), so the first lot of the chain an event
+        # mentions is used, unless that leads outside the map the lot's id names while a later
+        # one leads into it (the Godskin Noble's robe lot 34110401 is also an enemy id in
+        # m34_11's script; the drop is its chain's head, 34110400).
+        candidates = [l for l in chain if lot_in_events(l)] or [own_lot]
+        home = map_for_id(own_lot)
+        tried = [_from_events(l, flag) for l in candidates]
+        hit = next((r for r in tried if r and home and r["map"] == home), None) or tried[0]
+        if hit:
+            results.append(hit)
+            found = True
         if not found:
             # 4. a pickup in a map file other than the one the lot id points at
             for l in chain:
