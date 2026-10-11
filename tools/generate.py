@@ -393,12 +393,37 @@ def rune_spells():
     return out
 
 
+def armor_set(pieces, groups=True):
+    """Armor ids that belong with `pieces`. The game numbers a set's pieces in 1000-id groups
+    (+0 head, +100 chest, +200 hands, +300 legs), so with `groups`: every piece in their groups
+    (alternatives like the White Mask next to the War Surgeon Gown), plus the head-only groups
+    right after one (the alternative crowns after the Raya Lucarian set). Always: the "(Altered)"
+    version of every piece, which often sits in a group of its own."""
+    armor = {i: n for (cat, i), n in item_names().items() if cat == 3 and n and "[ERROR]" not in n}
+    group = lambda i: i - i % 1000
+    out = set(pieces)
+    if groups:
+        blocks = {group(i) for i in pieces}
+        members = defaultdict(list)
+        for i in armor:
+            members[group(i)].append(i)
+        for b in list(blocks):
+            nxt = b + 1000
+            while members.get(nxt) and all(i == nxt for i in members[nxt]):
+                blocks.add(nxt)
+                nxt += 1000
+        out |= {i for i in armor if group(i) in blocks}
+    by_name = {n: i for i, n in armor.items()}
+    out |= {by_name[armor[i] + " (Altered)"] for i in list(out) if armor.get(i, "") + " (Altered)" in by_name}
+    return out - set(pieces)
+
+
 def class_captions(classes):
     """[((category, item id), [goods ids of the notes listing it])] for every item a class note
     lists, a listed rune teaches, or a class starts with, one note per class, in class order (a
     starting item names the class's weapons note for a weapon, else its path note). A plain weapon
     also covers its infused variants (base + affinity * 100), which have their own descriptions;
-    armor, talismans and goods are exact ids."""
+    armor covers the rest of its set (armor_set); talismans and goods are exact ids."""
     import locate
     start = starting_gear()
     teaches = rune_spells()
@@ -432,7 +457,15 @@ def class_captions(classes):
                     for rune in by_family[family(item)]:
                         items.append((1, rune, note))
                         items += [(c, i, note) for c, i in teaches[rune]]
-        for cat, item in start.get(c["name"], []):
+        # A listed armor set covers its whole set (armor_set). A piece the notes list on its own
+        # only covers its altered version, unless the notes list another piece of its group too.
+        listed = Counter(i - i % 1000 for cat, i, _ in items if cat == 3)
+        whole = {i for cat, i, _ in items if cat == 3 and listed[i - i % 1000] > 1}
+        alone = {i for cat, i, _ in items if cat == 3} - whole
+        items += [(3, i, c["pathId"]) for i in armor_set(whole) | armor_set(alone, groups=False)]
+        gear = start.get(c["name"], [])
+        gear = gear + [(3, i) for i in armor_set({i for cat, i in gear if cat == 3})]
+        for cat, item in gear:
             items.append((cat, item, (cat == 2 and c.get("weaponsId")) or c["pathId"]))
         for cat, item, note in items:
             if cat not in (1, 2, 3, 4):
