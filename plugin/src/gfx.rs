@@ -11,11 +11,15 @@
 //! existed when the game launched, so Install.bat puts a placeholder there. When anything goes
 //! wrong the copy is made identical to Convergence's file and the markers use a stock icon.
 //!
-//! The icons are read from ClassMarkers/icons/map/<name>.png, so anyone can edit or swap them
-//! (any square PNG); a missing or unreadable file falls back to the built-in drawing.
+//! Each marker shows its class note's icon, read at every start from
+//! ClassMarkers/icons/map/<Class> (path|weapons).png and used as it is (tools/note_icons.py
+//! exports them with outline and glow; any square PNG works). A note without a file uses the
+//! stock icon.
 
+use crate::generated::NOTES;
 use crate::log;
-use crate::pixels::{icon_or_builtin, Rgba};
+use crate::pixels::{decode_png, Rgba};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -23,16 +27,9 @@ use std::path::Path;
 const MOVIE: &str = "02_120_worldmap.gfx";
 /// The sprite whose frames are the map icons.
 const ICON_SPRITE: u16 = 171;
-/// On-map size of our icons in pixels (the stock round icons are 70-78).
-const ICON_PX: f64 = 72.0;
-
-/// Our icons, in the order prepare() returns their ids, with the built-in drawings
-/// (tools/icons.py).
-const ICONS: [(&str, &[u8]); 3] = [
-    ("weapon", include_bytes!("../../icons/map/weapon.png")),
-    ("armor", include_bytes!("../../icons/map/armor.png")),
-    ("rune", include_bytes!("../../icons/map/rune.png")),
-];
+/// On-map size of our icon images in pixels; the note itself takes about half (the rest is outline
+/// and glow), next to the stock icons' 70-78.
+const ICON_PX: f64 = 84.0;
 
 /// A DefineBitsLossless2 body without the character id: format 5 (32-bit), width, height, then
 /// zlib'd rows of premultiplied [A, R, G, B].
@@ -52,53 +49,59 @@ fn lossless2_body(img: &Rgba) -> Vec<u8> {
     body
 }
 
-/// Icon ids of our weapon, armor and rune icons.
-#[derive(Clone, Copy)]
-pub struct IconIds {
-    pub weapon: u16,
-    pub armor: u16,
-    pub rune: u16,
+/// Where a note's map icon file is.
+pub fn note_icon_path(dll_dir: &Path, class: &str, which: &str) -> std::path::PathBuf {
+    dll_dir.join("icons").join("map").join(format!("{} ({}).png", class, which))
 }
 
 /// Rebuild our copy of the world map movie. `dll_dir` = ConvergenceER\ClassMarkers.
-/// None = our icons are not available this session (use a stock icon).
-pub fn prepare(dll_dir: &Path) -> Option<IconIds> {
+/// Returns note goods id -> icon id for the notes whose icon was added (empty = stock icons).
+pub fn prepare(dll_dir: &Path) -> HashMap<u32, u16> {
     let ours = dll_dir.join("mod").join("menu").join(MOVIE);
     let theirs = dll_dir.join("..").join("mod").join("menu").join(MOVIE);
     if !ours.exists() {
         log!("Icons: {} is missing (run Install.bat); using a stock icon", ours.display());
-        return None;
+        return HashMap::new();
     }
     let src = match fs::read(&theirs) {
         Ok(s) => s,
         Err(e) => {
             log!("Icons: can't read {} ({}); using a stock icon", theirs.display(), e);
-            return None;
+            return HashMap::new();
         }
     };
-    let icons: Vec<Vec<u8>> = ICONS
-        .iter()
-        .map(|(name, builtin)| {
-            let path = dll_dir.join("icons").join("map").join(format!("{}.png", name));
-            lossless2_body(&icon_or_builtin(&path, builtin))
-        })
-        .collect();
-    let (out, first) = match build(&src, &icons) {
+
+    let mut icons = Vec::new();
+    let mut notes = Vec::new(); // (note goods id, index in `icons`)
+    for note in NOTES {
+        let path = note_icon_path(dll_dir, note.class, note.which);
+        let Ok(bytes) = fs::read(&path) else { continue };
+        match decode_png(&bytes) {
+            Ok(img) => {
+                notes.push((note.goods_id, icons.len()));
+                icons.push(lossless2_body(&img));
+            }
+            Err(e) => log!("Icons: can't read {} ({}); that note's markers use a stock icon", path.display(), e),
+        }
+    }
+
+    let built = if icons.is_empty() { Err("no icon files in icons/map".to_string()) } else { build(&src, &icons) };
+    let (out, first) = match built {
         Ok(r) => r,
         Err(e) => {
             log!("Icons: can't add them to the world map ({}); using a stock icon", e);
             let _ = fs::write(&ours, &src); // never leave a stale or broken copy in the way
-            return None;
+            return HashMap::new();
         }
     };
     if fs::read(&ours).ok().as_deref() != Some(&out[..]) {
         if let Err(e) = fs::write(&ours, &out) {
             log!("Icons: can't write {} ({}); using a stock icon", ours.display(), e);
-            return None;
+            return HashMap::new();
         }
     }
-    log!("Icons: added as icon ids {}-{}", first, first + ICONS.len() as u16 - 1);
-    Some(IconIds { weapon: first, armor: first + 1, rune: first + 2 })
+    log!("Icons: {} class note icons added as icon ids {}-{}", icons.len(), first, first + icons.len() as u16 - 1);
+    notes.into_iter().map(|(note, i)| (note, first + i as u16)).collect()
 }
 
 struct Tag {
@@ -313,8 +316,8 @@ mod tests {
         let (Ok(src), Ok(out)) = (std::env::var("CM_GFX_SRC"), std::env::var("CM_GFX_OUT")) else {
             return;
         };
-        let icons: Vec<Vec<u8>> =
-            super::ICONS.iter().map(|(_, png)| super::lossless2_body(&crate::pixels::decode_png(png).unwrap())).collect();
+        let dot = crate::pixels::Rgba { width: 8, height: 8, data: [255u8, 200, 100, 255].repeat(64) };
+        let icons = vec![super::lossless2_body(&dot)];
         let (bytes, first) = super::build(&std::fs::read(src).unwrap(), &icons).unwrap();
         std::fs::write(out, bytes).unwrap();
         println!("first icon id {}", first);

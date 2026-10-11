@@ -3,10 +3,12 @@
 Adds world-map markers for the items listed in The Convergence's class notes
 ("Note: Path of the …" / "Note: Weapons for …"): spell runes, armor and weapons, labelled with the
 item name and its location. Item descriptions start with a line naming the classes whose notes
-list the item (or a rune that teaches it) or that start with it, each with its note's icon and in a colour taken from it. A note's markers show while that note is in
-your inventory (put a note in the storage chest to stop tracking that class, take it out to track
-it again); a marker hides once you've picked its item up there, or have it in your inventory or
-storage chest. Markers use our own icons (sword = weapon, helm = armor, rune = spell rune).
+list the item (or a rune that teaches it) or that start with it, each with its note's icon and in
+a colour taken from it. A note's markers show while that note is in your inventory (put a note in
+the storage chest to stop tracking that class, take it out to track it again); a marker hides
+once you've picked its item up there, or have it in your inventory or storage chest. Each marker
+shows its class note's icon with an outline and a glow in the class colour, and its text names
+the item and repeats where the note says to find it ("Note: …").
 A DLL loaded by me3 — Convergence's files and the game files are not modified (apart from one
 fenced entry added to Convergence's launch profiles).
 
@@ -17,10 +19,10 @@ restart the game.
 
 | Folder | What | Starting point |
 |---|---|---|
-| `icons/map/` | Map markers: `weapon.png`, `armor.png`, `rune.png` (any square size; shown ~72 px) | Drawn by `tools/icons.py` (built into the plugin too) |
+| `icons/map/` | Map markers: `<Class> (path).png` / `(weapons).png`, shown exactly as they are (any square PNG, drawn ~84 px) | `python tools/note_icons.py` exports Convergence's note icons, tail included, the paper at the centre, with a thin uneven black outline and a glow in the class colour baked in |
 | `icons/notes/` | Next to the class names in item descriptions: `<Class> (path).png` / `(weapons).png`; each class name takes the most vivid colour of its icon, or its line in `colors.txt` (`Class = #RRGGBB`) | `python tools/note_icons.py` exports Convergence's note icons, cut to sit on the baseline |
 
-A missing file falls back to the built-in map icon or the note's own icon. Note icons can be any
+A missing file falls back to the map's stock icon or the note's own icon. Note icons can be any
 size and shape: 96 image pixels are drawn as 32 screen pixels. The description box puts the
 image's bottom on the text baseline and grows the line upward for anything taller, so the exported
 icons are cut like a letter: no tail, no margins, two thirds of a 96 px square, resting on its
@@ -34,8 +36,7 @@ bottom edge. Changing note icons costs a few seconds once at the next start.
 | `plugin/src/generated.rs` | Marker data, written by `tools/generate.py`. Don't edit by hand. |
 | `tools/generate.py` | Reads Convergence's files and writes `generated.rs`. |
 | `icons/` | Our icons, read by the plugin at every start (see Icons above). |
-| `tools/icons.py` | Draws the map icons into `icons/map/` (keeps existing files; `--force` redraws). |
-| `tools/note_icons.py` | Exports Convergence's note icons into `icons/notes/` (keeps existing files; `--force` overwrites). |
+| `tools/note_icons.py` | Exports Convergence's note icons into `icons/notes/` and `icons/map/` (keeps existing files; `--force` overwrites). |
 | `tools/profiles.ps1` | Used by `Install.bat` / `Uninstall.bat`. |
 | `mod/` | Our me3 package (generated, not in git): the world map movie and menu icon textures with our icons. |
 | `available_map_icons.png` | Every icon the map can show, with its icon id. |

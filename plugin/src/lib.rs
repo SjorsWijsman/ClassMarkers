@@ -23,7 +23,7 @@ mod scan;
 use std::sync::OnceLock;
 
 /// Our own map icons, if they could be added (see gfx.rs).
-static ICONS: OnceLock<Option<gfx::IconIds>> = OnceLock::new();
+static ICONS: OnceLock<std::collections::HashMap<u32, u16>> = OnceLock::new();
 /// Our class note icons for item descriptions (see noteicons.rs).
 pub(crate) static NOTE_ICONS: OnceLock<noteicons::Available> = OnceLock::new();
 
@@ -39,7 +39,7 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
         // Our icons have to be in place before the game loads its menus, so these jobs (file reads
         // and writes; seconds only when the note icons changed) run right here; everything else
         // goes to our own thread.
-        let icons = log::dll_dir().and_then(|d| gfx::prepare(d));
+        let icons = log::dll_dir().map(|d| gfx::prepare(d)).unwrap_or_default();
         let _ = ICONS.set(icons);
         let notes = log::dll_dir().map(|d| noteicons::prepare(d)).unwrap_or_default();
         let _ = NOTE_ICONS.set(notes);
@@ -54,7 +54,8 @@ fn run() {
 
     // Labels first: a marker must never point at text that doesn't exist.
     static ROWS: OnceLock<Vec<Option<usize>>> = OnceLock::new();
-    let labels = markers.iter().map(|m| m.label_text()).collect();
+    // Text ids: FIRST_TEXT_ID + i = marker i's label, FIRST_TEXT_ID + count + i = its note hint.
+    let labels = markers.iter().map(|m| m.label_text()).chain(markers.iter().map(|m| m.hint_text())).collect();
     let have_labels = match msg::add_labels(labels, || {
         // Labels lost: blank every text line of ours so only the place-name lines remain.
         for &row in ROWS.get().into_iter().flatten().flatten() {
@@ -77,8 +78,9 @@ fn run() {
         .iter()
         .enumerate()
         .map(|(i, m)| {
-            let label = have_labels.then_some(msg::FIRST_TEXT_ID + i as i32);
-            (m.block, m.row(label, ICONS.get().copied().flatten()), m.label.to_string())
+            let texts = have_labels
+                .then_some((msg::FIRST_TEXT_ID + i as i32, msg::FIRST_TEXT_ID + (markers.len() + i) as i32));
+            (m.block, m.row(texts, ICONS.get().unwrap_or(&Default::default())), m.label.to_string())
         })
         .collect();
     match inject::inject(add) {

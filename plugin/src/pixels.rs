@@ -23,15 +23,3 @@ pub fn decode_png(bytes: &[u8]) -> Result<Rgba, String> {
     };
     Ok(Rgba { width: info.width, height: info.height, data })
 }
-
-/// Where to read an icon: the user's file if it exists, else our built-in copy. Logs a file that
-/// can't be read or decoded and falls back to the built-in one.
-pub fn icon_or_builtin(path: &std::path::Path, builtin: &[u8]) -> Rgba {
-    if let Ok(bytes) = std::fs::read(path) {
-        match decode_png(&bytes) {
-            Ok(img) => return img,
-            Err(e) => crate::log!("Icons: can't read {} ({}); using the built-in one", path.display(), e),
-        }
-    }
-    decode_png(builtin).expect("built-in icon")
-}

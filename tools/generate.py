@@ -198,7 +198,7 @@ def build_markers(classes, report, placer):
             else:
                 continue
             note = weapons_note[entry["class"]] if entry["kind"] == "weapon" else path_note[entry["class"]]
-            out.append(dict(p, cls=entry["class"], note=note, entry=entry["name"],
+            out.append(dict(p, cls=entry["class"], note=note, entry=entry["name"], hint=entry["loc"],
                             kind=ITEM_KIND[entry["kind"]], item_id=res["item_id"], item=res["piece"], cat=res["cat"],
                             flag=res.get("flag", 0) or 0, src=f'{res["how"]} {res.get("map", "")}'.strip()))
             placed_any = True
@@ -424,10 +424,10 @@ def write_rust(classes, markers, placer):
     for m in markers:
         lines.append(
             "    GenMarker { note: %d, kind: %d, items: &[%s], block: %d, area: %d, grid_x: %d, grid_z: %d, "
-            "x: %.3f, y: %.3f, z: %.3f, disp_mask: %d, text_id: %d, name: %s, label: %s },"
+            "x: %.3f, y: %.3f, z: %.3f, disp_mask: %d, text_id: %d, name: %s, hint: %s, label: %s },"
             % (m["note"], m["kind"], ", ".join("Item { category: %d, id: %d, flag: %d }" % i for i in m["items"]),
                m["block"], m["area"], m["gx"], m["gz"],
-               m["x"], m["y"], m["z"], m["disp_mask"], m["text_id"], rust_str(m["entry"]),
+               m["x"], m["y"], m["z"], m["disp_mask"], m["text_id"], rust_str(m["entry"]), rust_str(m["hint"]),
                rust_str(f'{m["cls"]}: {m["entry"]} ({m["src"]}, {m["how"]})')))
     lines += ["];", "",
               "/// Item descriptions to extend: (ItemLot category, item id, [goods ids of the notes",
@@ -495,8 +495,6 @@ def write_matching_report(classes, report):
 
 
 def main():
-    import icons
-    icons.main()
     extract()
     from build_data import build_classes
     classes = build_classes()

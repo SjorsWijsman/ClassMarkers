@@ -1,6 +1,6 @@
 //! Marker definitions and their WORLD_MAP_POINT_PARAM_ST (256-byte) encoding.
 
-use crate::gfx::IconIds;
+use std::collections::HashMap;
 
 pub const ROW_SIZE: usize = 256;
 
@@ -10,7 +10,7 @@ pub const ALWAYS_ON_FLAG: u32 = 6001;
 pub const ALWAYS_OFF_FLAG: u32 = 6000;
 /// Offset of eventFlagId in a WORLD_MAP_POINT_PARAM_ST row.
 pub const EVENT_FLAG_OFFSET: usize = 0x04;
-/// Stock map icon used when our own icons (gfx.rs) are not available: 88, the round seal.
+/// Stock map icon for a marker whose note has no icon of ours (gfx.rs): 88, the round seal.
 pub const STOCK_ICON: u16 = 88;
 
 /// A class note (see tools/generate.py). You own it once any of `flags` is on: they are set when
@@ -57,6 +57,8 @@ pub struct GenMarker {
     pub text_id: i32,
     /// Map label: the entry's name as written in the class note.
     pub name: &'static str,
+    /// Where the class note says to find it, as written there.
+    pub hint: &'static str,
     /// For the log.
     pub label: &'static str,
 }
@@ -133,21 +135,31 @@ impl GenMarker {
         format!("{} {} - {}", class, kind, self.name).trim_start().to_string()
     }
 
-    /// The marker's row: line 1 = the place, line 2 = `label` (our "<class> <type> - <item>" text id),
-    /// or just the place when there's no label.
-    /// `icons`: our own icons when available (see gfx.rs), else the stock icon.
-    pub fn row(&self, label: Option<i32>, icons: Option<IconIds>) -> Row {
+    /// Second text line: where the class note says to find it.
+    pub fn hint_text(&self) -> String {
+        format!("Note: {}", self.hint)
+    }
+
+    /// The marker's row: line 1 = the place, then our text ids `texts` = (label "<class> <type> -
+    /// <item>", hint "Note: <where the note says>"), or just the place when there's no text of ours.
+    /// `icons`: note goods id -> our icon id (see gfx.rs); a note without one gets the stock icon.
+    pub fn row(&self, texts: Option<(i32, i32)>, icons: &HashMap<u32, u16>) -> Row {
         let line = |text_id| Line { text_id, text_type: 0 };
+        let mut lines = Vec::new();
+        if self.text_id >= 0 || texts.is_none() {
+            lines.push(line(self.text_id));
+        }
+        if let Some((label, hint)) = texts {
+            lines.push(line(label));
+            if !self.hint.is_empty() {
+                lines.push(line(hint));
+            }
+        }
         Row {
             // Hidden until the visibility check (classes.rs) has seen that you own the note and
             // haven't obtained the item(s) yet.
             event_flag: ALWAYS_OFF_FLAG,
-            icon: match (icons, self.kind) {
-                (Some(i), 1) => i.rune,
-                (Some(i), 2) => i.weapon,
-                (Some(i), 3) => i.armor,
-                _ => STOCK_ICON,
-            },
+            icon: icons.get(&self.note).copied().unwrap_or(STOCK_ICON),
             area: self.area,
             grid_x: self.grid_x,
             grid_z: self.grid_z,
@@ -155,11 +167,7 @@ impl GenMarker {
             y: self.y,
             z: self.z,
             disp_mask: self.disp_mask,
-            lines: match label {
-                Some(id) if self.text_id >= 0 => vec![line(self.text_id), line(id)],
-                Some(id) => vec![line(id)],
-                None => vec![line(self.text_id)],
-            },
+            lines,
         }
     }
 }
