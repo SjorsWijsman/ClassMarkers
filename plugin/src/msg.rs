@@ -14,6 +14,7 @@
 //! is changed in the highest layer that has it.
 
 use crate::generated::NOTES;
+use crate::markers::Note;
 use crate::inject::alloc_like;
 use crate::log;
 use crate::noteicons::NAME_PREFIX;
@@ -32,35 +33,45 @@ const CAPTION_SLOTS: [(u8, [usize; 3]); 4] = [
     (3, [26, 315, 415]), // ProtectorCaption
     (4, [27, 318, 418]), // AccessoryCaption
 ];
-/// On-screen size of a note's own (square) icon in the line, in pixels. The box puts an image's
-/// bottom on the text baseline and grows the line upward for anything taller (vspace is ignored),
-/// so the icon files are cut to sit on the baseline like a letter (tools/note_icons.py).
-const ICON_PX: u32 = 32;
-/// Our icon files are drawn at ICON_PX per this many image pixels, in both directions, so a file's
-/// own width and height count (the exported icons are this size: drawn at ICON_PX).
+/// On-screen size of a note's own (square) icon in item descriptions, in pixels. A text box puts
+/// an image's bottom on the text baseline and grows the line upward for anything taller (vspace is
+/// ignored), so the icon files are cut to sit on the baseline like a letter (tools/note_icons.py).
+pub const ICON_PX: u32 = 32;
+/// The same on the map markers' text, which is smaller: an icon taller than its line pushes the
+/// line down.
+pub const MAP_ICON_PX: u32 = 22;
+/// Our icon files are drawn at `icon_px` per this many image pixels, in both directions, so a
+/// file's own width and height count (the exported icons are this size).
 const ICON_FILE_PX: u32 = 96;
 
-/// The line added to an item's description: each class with the icon of its note (ours from
-/// icons/notes if there is one, else the note's own item icon), its name in the class's colour.
-/// The description box understands simple HTML: <font color>, <u>, and <img> of atlas entries
-/// work; bold, italic, other fonts and alignment don't.
+/// A note's icon as text markup, `icon_px` per ICON_FILE_PX: ours from icons/notes if there is one
+/// (noteicons.rs), else the note's own item icon. Used in item descriptions and the map markers'
+/// text. Text boxes understand simple HTML: <font color>, <u>, and <img> of atlas entries work;
+/// bold, italic, other fonts and alignment don't.
+pub fn note_img(note: &Note, icon_px: u32) -> String {
+    let scale = |px: u32| ((icon_px * px + ICON_FILE_PX / 2) / ICON_FILE_PX).max(1);
+    let (name, width, height) = match crate::NOTE_ICONS.get().and_then(|o| o.get(&note.goods_id)) {
+        Some(&(w, h)) => (format!("{}{}", NAME_PREFIX, note.goods_id), scale(w), scale(h)),
+        None => (format!("MENU_ItemIcon_{:05}", note.icon), icon_px, icon_px),
+    };
+    format!("<img src=\"img://{}\" width=\"{}\" height=\"{}\">", name, width, height)
+}
+
+/// `text` in the class's colour (`colours`: class -> "#RRGGBB", see colors.rs), if it has one.
+pub fn in_colour(text: &str, class: &str, colours: &HashMap<&str, String>) -> String {
+    match colours.get(class) {
+        Some(c) => format!("<font color=\"{}\">{}</font>", c, text),
+        None => text.to_string(),
+    }
+}
+
+/// The line added to an item's description: each class with its note's icon, its name in the
+/// class's colour.
 fn class_line(notes: &[u32], colours: &HashMap<&str, String>) -> String {
-    let ours = crate::NOTE_ICONS.get();
     let classes: Vec<String> = notes
         .iter()
         .filter_map(|id| NOTES.iter().find(|n| n.goods_id == *id))
-        .map(|note| {
-            let scale = |px: u32| ((ICON_PX * px + ICON_FILE_PX / 2) / ICON_FILE_PX).max(1);
-            let (name, width, height) = match ours.and_then(|o| o.get(&note.goods_id)) {
-                Some(&(w, h)) => (format!("{}{}", NAME_PREFIX, note.goods_id), scale(w), scale(h)),
-                None => (format!("MENU_ItemIcon_{:05}", note.icon), ICON_PX, ICON_PX),
-            };
-            let class = match colours.get(note.class) {
-                Some(c) => format!("<font color=\"{}\">{}</font>", c, note.class),
-                None => note.class.to_string(),
-            };
-            format!("<img src=\"img://{}\" width=\"{}\" height=\"{}\">{}", name, width, height, class)
-        })
+        .map(|note| format!("{}{}", note_img(note, ICON_PX), in_colour(note.class, note.class, colours)))
         .collect();
     classes.join(", ")
 }

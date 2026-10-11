@@ -1,6 +1,7 @@
 //! Marker definitions and their WORLD_MAP_POINT_PARAM_ST (256-byte) encoding.
 
 use crate::gfx::MapIcons;
+use std::collections::HashMap;
 
 pub const ROW_SIZE: usize = 256;
 
@@ -119,29 +120,30 @@ impl Row {
 }
 
 impl GenMarker {
-    /// Map label: "<class> <type> - <name as written in the note>",
-    /// e.g. "Nox Oracle Rune - Shimmering Rune of Night".
-    pub fn label_text(&self) -> String {
-        let kind = match self.kind {
-            1 => "Rune",
-            2 => "Weapon",
-            3 => "Armor",
-            _ => "Item",
-        };
-        let class = crate::generated::NOTES
-            .iter()
-            .find(|n| n.goods_id == self.note)
-            .map_or("", |n| n.class);
-        format!("{} {} - {}", class, kind, self.name).trim_start().to_string()
+    fn note(&self) -> Option<&'static Note> {
+        crate::generated::NOTES.iter().find(|n| n.goods_id == self.note)
     }
 
-    /// Second text line: where the class note says to find it.
+    /// Map label: "<class> - <name as written in the note>", the class in its colour (`colours`:
+    /// class -> "#RRGGBB", see colors.rs), e.g. "Nox Oracle - Shimmering Rune of Night".
+    pub fn label_text(&self, colours: &HashMap<&str, String>) -> String {
+        match self.note() {
+            Some(n) => format!("{} - {}", crate::msg::in_colour(n.class, n.class, colours), self.name),
+            None => self.name.to_string(),
+        }
+    }
+
+    /// Second text line: where the class note says to find it, after the note's icon (the same as
+    /// in item descriptions, smaller).
     pub fn hint_text(&self) -> String {
-        format!("Note: {}", self.hint)
+        match self.note() {
+            Some(n) => format!("{}{}", crate::msg::note_img(n, crate::msg::MAP_ICON_PX), self.hint),
+            None => format!("Note: {}", self.hint),
+        }
     }
 
-    /// The marker's row: line 1 = the place, then our text ids `texts` = (label "<class> <type> -
-    /// <item>", hint "Note: <where the note says>"), or just the place when there's no text of ours.
+    /// The marker's row: line 1 = the place, then our text ids `texts` = (label "<class> - <item>",
+    /// hint "<note icon><where the note says>"), or just the place when there's no text of ours.
     /// `icons`: our icons (see gfx.rs): a spell rune marker gets its rune tier's icon, others (or
     /// without one) the note's icon, else the stock icon.
     pub fn row(&self, texts: Option<(i32, i32)>, icons: &MapIcons) -> Row {
