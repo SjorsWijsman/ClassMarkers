@@ -20,6 +20,8 @@ use crate::log;
 use crate::noteicons::NAME_PREFIX;
 use crate::scan;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// `mov rdi, [rip+X]` loading the MsgRepositoryImp singleton.
@@ -187,19 +189,42 @@ unsafe fn build_fmg(original: *const u8, ours: &[(i32, Vec<u16>)]) -> Result<*mu
     Ok(f)
 }
 
+/// Where string `id` of an in-memory FMG is, if it has one.
+pub unsafe fn fmg_string(fmg: *const u8, id: i32) -> Option<*mut u16> {
+    let groups: u32 = rd(fmg.add(0x0C));
+    let raw: u64 = rd(fmg.add(0x18));
+    let offsets = if raw > 0x100_0000 { raw as *const u8 } else { fmg.add(raw as usize) };
+    for g in 0..groups as usize {
+        let grp = fmg.add(0x28 + g * 16);
+        let (index, first, last): (i32, i32, i32) = (rd(grp), rd(grp.add(4)), rd(grp.add(8)));
+        if (first..=last).contains(&id) {
+            let off: u64 = rd(offsets.add((index + id - first) as usize * 8));
+            if off == 0 {
+                return None;
+            }
+            let p = if off > 0x100_0000 { off as *mut u16 } else { fmg.add(off as usize) as *mut u16 };
+            return Some(p);
+        }
+    }
+    None
+}
+
 /// Our entries for a loaded text file, computed from that file (so a re-load is patched afresh).
 type Entries = Box<dyn Fn(*const u8) -> Vec<(i32, Vec<u16>)> + Send>;
 
 /// Point `slot` at a copy of its text file with `entries` added, and keep it that way: a watcher
 /// re-applies the patch if the game ever loads that text again (and calls `on_lost` if it can't).
+/// Returns where our current copy is (updated by the watcher).
 fn patch_and_watch(
     slot: *mut *mut u8,
     what: &'static str,
     entries: Entries,
     on_lost: impl Fn() + Send + 'static,
-) -> Result<(), String> {
+) -> Result<Arc<AtomicUsize>, String> {
     let patched = unsafe { build_fmg(*slot, &entries(*slot))? };
     unsafe { *slot = patched };
+    let ours = Arc::new(AtomicUsize::new(patched as usize));
+    let shared = ours.clone();
     let (slot, mut current) = (slot as usize, patched as usize);
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(5));
@@ -210,6 +235,7 @@ fn patch_and_watch(
         log!("The game reloaded its {} text; adding ours again", what);
         match unsafe { build_fmg(now as *const u8, &entries(now as *const u8)) } {
             Ok(p) => {
+                shared.store(p as usize, Ordering::Relaxed);
                 unsafe { *(slot as *mut usize) = p as usize };
                 current = p as usize;
             }
@@ -220,7 +246,7 @@ fn patch_and_watch(
             }
         }
     });
-    Ok(())
+    Ok(ours)
 }
 
 /// Add `labels` to PlaceName as ids FIRST_TEXT_ID, FIRST_TEXT_ID + 1, ...
@@ -240,19 +266,26 @@ pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> R
 }
 
 /// Start the description of every item in `captions` (ItemLot category, item id, [goods ids of the
-/// notes listing it]) with a line naming those classes. Returns how many descriptions were extended.
+/// notes listing it]) with a line naming those classes, and replace the class notes' descriptions
+/// with their tracker text (tracker.rs). Returns how many descriptions were changed.
 pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result<usize, String> {
     let repo = repository()?;
     let colours = log::dll_dir().map(|d| crate::colors::class_colors(d)).unwrap_or_default();
     let classes: std::collections::HashSet<_> = NOTES.iter().map(|n| n.class).collect();
     log!("Class colours: {} of {} classes", colours.len(), classes.len());
+    crate::tracker::init(colours.clone());
     let mut done = 0;
     for (category, slots) in CAPTION_SLOTS {
-        let wanted: HashMap<i32, &[u32]> = captions
+        let mut wanted: HashMap<i32, &[u32]> = captions
             .iter()
             .filter(|(c, _, _)| *c == category)
             .map(|&(_, id, listed)| (id as i32, listed))
             .collect();
+        if category == 1 {
+            for t in crate::generated::NOTE_TEXTS {
+                wanted.entry(t.note as i32).or_insert(&[]);
+            }
+        }
         if wanted.is_empty() {
             continue;
         }
@@ -272,17 +305,26 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result
             let Some(slot) = *slot else { continue };
             let mine: HashMap<i32, String> = owner
                 .iter()
-                .filter(|(_, &o)| o == l)
+                .filter(|(&id, &o)| o == l && !crate::tracker::is_note(id))
                 .map(|(&id, _)| (id, class_line(wanted[&id], &colours)))
                 .collect();
-            if mine.is_empty() {
+            let notes: Vec<u32> = owner
+                .iter()
+                .filter(|(&id, &o)| o == l && crate::tracker::is_note(id))
+                .map(|(&id, _)| id as u32)
+                .collect();
+            if mine.is_empty() && notes.is_empty() {
                 continue;
             }
-            let n = mine.len();
+            let n = mine.len() + notes.len();
             let entries: Entries = Box::new(move |fmg| {
                 unsafe { read_fmg(fmg) }
                     .into_iter()
                     .filter_map(|(id, text)| {
+                        // A class note: its tracker text (with room to grow).
+                        if let Some(note) = crate::tracker::padded(id) {
+                            return Some((id, note));
+                        }
                         // Our line first, then the description on the next line.
                         let line = mine.get(&id)?;
                         let mut out: Vec<u16> = format!("{}\n", line).encode_utf16().collect();
@@ -291,7 +333,11 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result
                     })
                     .collect()
             });
-            patch_and_watch(slot, "item description", entries, || {})?;
+            let ours = patch_and_watch(slot, "item description", entries, || {})?;
+            if !notes.is_empty() {
+                log!("Class notes: {} rewritten as trackers", notes.len());
+                crate::tracker::register(slot, ours, notes);
+            }
             done += n;
         }
     }

@@ -8,7 +8,10 @@ a colour taken from it. A note's markers show while that note is in your invento
 the storage chest to stop tracking that class, take it out to track it again); a marker hides
 once you've picked its item up there, or have it in your inventory or storage chest. Each marker
 shows its class note's icon with an outline and a glow in the class colour, and its text names
-the item and repeats where the note says to find it ("Note: …").
+the item and repeats where the note says to find it, after the note's icon.
+The class notes themselves become trackers: every note is rewritten in one layout (class and
+progress, its intro, then its runes / armor / weapons with counts), entries in the class colour,
+turning grey once found.
 A DLL loaded by me3 — Convergence's files and the game files are not modified (apart from one
 fenced entry added to Convergence's launch profiles).
 

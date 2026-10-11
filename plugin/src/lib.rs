@@ -19,6 +19,7 @@ mod msg;
 mod noteicons;
 mod pixels;
 mod scan;
+mod tracker;
 
 use std::sync::OnceLock;
 

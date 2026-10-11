@@ -135,6 +135,7 @@ pub fn watch(rows: Vec<Watched>) {
                 log!("Class notes: detecting owned notes from {}", source);
                 source_logged = Some(source);
             }
+            crate::tracker::update(&|i| obtained(i, owned.as_ref(), flags.as_ref()));
             let shown: Vec<bool> = rows
                 .iter()
                 .map(|r| {
