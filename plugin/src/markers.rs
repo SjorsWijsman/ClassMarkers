@@ -21,6 +21,8 @@ pub struct Note {
     /// "path" (Note: Path of the <class>) or "weapons" (Note: Weapons for <class>).
     pub which: &'static str,
     pub flags: &'static [u32],
+    /// The note's own item icon (EquipParamGoods iconId).
+    pub icon: u16,
 }
 
 /// An item a marker points to. It counts as obtained once its pickup `flag` is on (0 = none

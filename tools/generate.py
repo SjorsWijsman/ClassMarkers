@@ -254,10 +254,18 @@ def rust_str(s):
     return json.dumps(s, ensure_ascii=False)
 
 
+def goods_icons():
+    """Goods id -> its icon id (EquipParamGoods iconId)."""
+    from param import rows
+    r, _ = rows(os.path.join(common.REG_DIR, "EquipParamGoods.param"))
+    return {gid: struct.unpack_from("<H", b, 0x30)[0] for gid, b in r.items()}
+
+
 def class_captions(classes):
-    """[((category, item id), [class names])] for every item a class note lists, in class order.
-    A plain weapon also covers its infused variants (base + affinity * 100), which have their
-    own descriptions; armor, talismans and goods are exact ids."""
+    """[((category, item id), [goods ids of the notes listing it])] for every item a class note
+    lists, one note per class, in class order. A plain weapon also covers its infused variants
+    (base + affinity * 100), which have their own descriptions; armor, talismans and goods are
+    exact ids."""
     import locate
     weapon_variants = defaultdict(list)          # plain weapon id -> variant ids with a caption
     for f in ("WeaponCaption", "WeaponCaption_dlc01", "WeaponCaption_dlc02"):
@@ -268,14 +276,15 @@ def class_captions(classes):
     out = {}
     for c in classes:
         for kind, name, loc, siblings in locate.note_entries(c):
+            note = (kind == "weapon" and c.get("weaponsId")) or c["pathId"]
             for _, item, cat in locate.resolve_ids(kind, name, siblings):
                 if cat not in (1, 2, 3, 4):
                     continue
                 ids = [item] + (weapon_variants.get(item, []) if cat == 2 and item % 10000 == 0 else [])
                 for i in ids:
-                    names = out.setdefault((cat, i), [])
-                    if c["name"] not in names:
-                        names.append(c["name"])
+                    listed = out.setdefault((cat, i), [])
+                    if all(cls != c["name"] for cls, _ in listed):
+                        listed.append((c["name"], note))
     return sorted(out.items())
 
 
@@ -287,9 +296,10 @@ def write_rust(classes, markers, placer):
         "/// Every class note, with the event flags its pickups set (owning the note = any flag on).",
         "pub const NOTES: &[Note] = &[",
     ]
+    icons = goods_icons()
     for note, cls, which, flags in note_flags(classes):
         lines.append(f"    Note {{ goods_id: {note}, class: {rust_str(cls)}, which: {rust_str(which)}, "
-                     f"flags: &[{', '.join(map(str, flags))}] }},")
+                     f"flags: &[{', '.join(map(str, flags))}], icon: {icons.get(note, 0)} }},")
     lines += ["];", "", "pub const MARKERS: &[GenMarker] = &["]
     for m in markers:
         lines.append(
@@ -300,10 +310,11 @@ def write_rust(classes, markers, placer):
                m["x"], m["y"], m["z"], m["disp_mask"], m["text_id"], rust_str(m["entry"]),
                rust_str(f'{m["cls"]}: {m["entry"]} ({m["src"]}, {m["how"]})')))
     lines += ["];", "",
-              "/// Item descriptions to extend: (ItemLot category, item id, classes whose notes list it).",
-              "pub const CAPTIONS: &[(u8, u32, &str)] = &["]
-    for (cat, item), classes_ in class_captions(classes):
-        lines.append(f"    ({cat}, {item}, {rust_str(', '.join(classes_))}),")
+              "/// Item descriptions to extend: (ItemLot category, item id, [goods ids of the notes",
+              "/// listing it, one per class]).",
+              "pub const CAPTIONS: &[(u8, u32, &[u32])] = &["]
+    for (cat, item), listed in class_captions(classes):
+        lines.append(f"    ({cat}, {item}, &[{', '.join(str(note) for _, note in listed)}]),")
     lines += ["];", ""]
     open(common.GENERATED_RS, "w", encoding="utf-8").write("\n".join(lines))
 

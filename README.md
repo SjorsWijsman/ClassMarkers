@@ -2,13 +2,29 @@
 
 Adds world-map markers for the items listed in The Convergence's class notes
 ("Note: Path of the …" / "Note: Weapons for …"): spell runes, armor and weapons, labelled with the
-item name and its location. Item descriptions get a "Class notes: …" line naming the classes
-whose notes list the item. A note's markers show while that note is in your inventory (put a
-note in the storage chest to stop tracking that class, take it out to track it again); a
-marker hides once you've picked its item up there, or have it in your inventory or storage chest.
-Markers use our own icons (sword = weapon, helm = armor, rune = spell rune).
+item name and its location. Item descriptions start with a line naming the classes whose notes
+list the item, each with its note's icon and in a colour taken from it. A note's markers show while that note is in
+your inventory (put a note in the storage chest to stop tracking that class, take it out to track
+it again); a marker hides once you've picked its item up there, or have it in your inventory or
+storage chest. Markers use our own icons (sword = weapon, helm = armor, rune = spell rune).
 A DLL loaded by me3 — Convergence's files and the game files are not modified (apart from one
 fenced entry added to Convergence's launch profiles).
+
+## Icons
+
+All icons are plain PNGs in `icons/`, read by the plugin at every start: edit or replace them and
+restart the game.
+
+| Folder | What | Starting point |
+|---|---|---|
+| `icons/map/` | Map markers: `weapon.png`, `armor.png`, `rune.png` (any square size; shown ~72 px) | Drawn by `tools/icons.py` (built into the plugin too) |
+| `icons/notes/` | Next to the class names in item descriptions: `<Class> (path).png` / `(weapons).png`; each class name takes the most vivid colour of its icon, or its line in `colors.txt` (`Class = #RRGGBB`) | `python tools/note_icons.py` exports Convergence's note icons, cut to sit on the baseline |
+
+A missing file falls back to the built-in map icon or the note's own icon. Note icons can be any
+size and shape: 96 image pixels are drawn as 32 screen pixels. The description box puts the
+image's bottom on the text baseline and grows the line upward for anything taller, so the exported
+icons are cut like a letter: no tail, no margins, two thirds of a 96 px square, resting on its
+bottom edge. Changing note icons costs a few seconds once at the next start.
 
 ## Layout
 
@@ -17,9 +33,11 @@ fenced entry added to Convergence's launch profiles).
 | `plugin/` | Rust DLL. Grows `WorldMapPointParam` and the PlaceName text in memory at startup. |
 | `plugin/src/generated.rs` | Marker data, written by `tools/generate.py`. Don't edit by hand. |
 | `tools/generate.py` | Reads Convergence's files and writes `generated.rs`. |
-| `tools/icons.py` | Draws our map icons (`icons/*.png`) and writes them for the plugin (`plugin/src/icons/*.bin`). |
+| `icons/` | Our icons, read by the plugin at every start (see Icons above). |
+| `tools/icons.py` | Draws the map icons into `icons/map/` (keeps existing files; `--force` redraws). |
+| `tools/note_icons.py` | Exports Convergence's note icons into `icons/notes/` (keeps existing files; `--force` overwrites). |
 | `tools/profiles.ps1` | Used by `Install.bat` / `Uninstall.bat`. |
-| `mod/` | Our me3 package (generated, not in git): the world map movie with our icons. |
+| `mod/` | Our me3 package (generated, not in git): the world map movie and menu icon textures with our icons. |
 | `available_map_icons.png` | Every icon the map can show, with its icon id. |
 
 ## Setup on a new machine
@@ -49,6 +67,11 @@ replaces the profiles).
   and one frame per icon (icon ids right after Convergence's last frame), and writes it to `mod/`,
   an me3 package loaded after Convergence's. A Convergence update is picked up automatically; if
   anything fails, the copy is made identical to Convergence's and markers use stock icon 88.
+- Note icons: the description box draws `<img src="img://NAME">` from the menu icon atlas
+  (`menu/hi/01_common.sblytbnd` = named rectangles, `01_common.tpf` = BC7 textures). The plugin
+  adds rows with our icons below the texture that holds the note icons, and entries
+  `MENU_ItemIcon_CM_<note id>` to its layout, in copies in `mod/`. Rebuilt only when an icon or
+  Convergence's files changed (`mod/menu/hi/class_markers_icons.stamp`).
 - Technique for growing params/text in memory follows
   [Map For Goblins - DLL](https://github.com/VirusAlex/ERR-MapForGoblins-DLL) by VirusAlex (MIT).
 

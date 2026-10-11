@@ -8,6 +8,7 @@
 //! https://github.com/VirusAlex/ERR-MapForGoblins-DLL
 
 mod classes;
+mod colors;
 mod flags;
 mod generated;
 mod gfx;
@@ -15,12 +16,16 @@ mod inject;
 mod log;
 mod markers;
 mod msg;
+mod noteicons;
+mod pixels;
 mod scan;
 
 use std::sync::OnceLock;
 
 /// Our own map icons, if they could be added (see gfx.rs).
 static ICONS: OnceLock<Option<gfx::IconIds>> = OnceLock::new();
+/// Our class note icons for item descriptions (see noteicons.rs).
+pub(crate) static NOTE_ICONS: OnceLock<noteicons::Available> = OnceLock::new();
 
 use std::ffi::c_void;
 use windows_sys::Win32::Foundation::{HMODULE, TRUE};
@@ -31,10 +36,13 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         log::init(module);
-        // Our icons have to be in place before the game loads its menus, so this one small job
-        // (a file read and write) runs right here; everything else goes to our own thread.
+        // Our icons have to be in place before the game loads its menus, so these jobs (file reads
+        // and writes; seconds only when the note icons changed) run right here; everything else
+        // goes to our own thread.
         let icons = log::dll_dir().and_then(|d| gfx::prepare(d));
         let _ = ICONS.set(icons);
+        let notes = log::dll_dir().map(|d| noteicons::prepare(d)).unwrap_or_default();
+        let _ = NOTE_ICONS.set(notes);
         std::thread::spawn(run);
     }
     TRUE

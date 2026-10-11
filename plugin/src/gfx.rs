@@ -10,8 +10,12 @@
 //! menu, so a Convergence update is picked up by itself. me3 only serves package files that
 //! existed when the game launched, so Install.bat puts a placeholder there. When anything goes
 //! wrong the copy is made identical to Convergence's file and the markers use a stock icon.
+//!
+//! The icons are read from ClassMarkers/icons/map/<name>.png, so anyone can edit or swap them
+//! (any square PNG); a missing or unreadable file falls back to the built-in drawing.
 
 use crate::log;
+use crate::pixels::{icon_or_builtin, Rgba};
 use std::fs;
 use std::path::Path;
 
@@ -22,13 +26,31 @@ const ICON_SPRITE: u16 = 171;
 /// On-map size of our icons in pixels (the stock round icons are 70-78).
 const ICON_PX: f64 = 72.0;
 
-/// Our icons, in the order prepare() returns their ids: DefineBitsLossless2 bodies without the
-/// character id, written by tools/icons.py.
+/// Our icons, in the order prepare() returns their ids, with the built-in drawings
+/// (tools/icons.py).
 const ICONS: [(&str, &[u8]); 3] = [
-    ("weapon", include_bytes!("icons/weapon.bin")),
-    ("armor", include_bytes!("icons/armor.bin")),
-    ("rune", include_bytes!("icons/rune.bin")),
+    ("weapon", include_bytes!("../../icons/map/weapon.png")),
+    ("armor", include_bytes!("../../icons/map/armor.png")),
+    ("rune", include_bytes!("../../icons/map/rune.png")),
 ];
+
+/// A DefineBitsLossless2 body without the character id: format 5 (32-bit), width, height, then
+/// zlib'd rows of premultiplied [A, R, G, B].
+fn lossless2_body(img: &Rgba) -> Vec<u8> {
+    let argb: Vec<u8> = img
+        .data
+        .chunks(4)
+        .flat_map(|p| {
+            let a = p[3] as u32;
+            [p[3], (p[0] as u32 * a / 255) as u8, (p[1] as u32 * a / 255) as u8, (p[2] as u32 * a / 255) as u8]
+        })
+        .collect();
+    let mut body = vec![5];
+    body.extend_from_slice(&(img.width as u16).to_le_bytes());
+    body.extend_from_slice(&(img.height as u16).to_le_bytes());
+    body.extend(miniz_oxide::deflate::compress_to_vec_zlib(&argb, 9));
+    body
+}
 
 /// Icon ids of our weapon, armor and rune icons.
 #[derive(Clone, Copy)]
@@ -54,7 +76,14 @@ pub fn prepare(dll_dir: &Path) -> Option<IconIds> {
             return None;
         }
     };
-    let (out, first) = match build(&src) {
+    let icons: Vec<Vec<u8>> = ICONS
+        .iter()
+        .map(|(name, builtin)| {
+            let path = dll_dir.join("icons").join("map").join(format!("{}.png", name));
+            lossless2_body(&icon_or_builtin(&path, builtin))
+        })
+        .collect();
+    let (out, first) = match build(&src, &icons) {
         Ok(r) => r,
         Err(e) => {
             log!("Icons: can't add them to the world map ({}); using a stock icon", e);
@@ -185,8 +214,9 @@ impl BitWriter {
     }
 }
 
-/// Convergence's movie with our icons added -> (new file, icon id of our first icon).
-fn build(src: &[u8]) -> Result<(Vec<u8>, u16), String> {
+/// Convergence's movie with our icons (DefineBitsLossless2 bodies) added -> (new file, icon id of
+/// our first icon).
+fn build(src: &[u8], icons: &[Vec<u8>]) -> Result<(Vec<u8>, u16), String> {
     if src.len() < 12 || &src[..3] != b"GFX" {
         return Err("not an uncompressed GFX movie".into());
     }
@@ -202,7 +232,7 @@ fn build(src: &[u8]) -> Result<(Vec<u8>, u16), String> {
         .max()
         .unwrap_or(0);
     let first_char = max_id as u32 + 1;
-    if first_char + ICONS.len() as u32 > u16::MAX as u32 {
+    if first_char + icons.len() as u32 > u16::MAX as u32 {
         return Err("no free character ids".into());
     }
 
@@ -236,7 +266,7 @@ fn build(src: &[u8]) -> Result<(Vec<u8>, u16), String> {
 
     // Our bitmaps, defined right before the sprite.
     let mut bitmaps = Vec::new();
-    for (i, (_, body)) in ICONS.iter().enumerate() {
+    for (i, body) in icons.iter().enumerate() {
         let mut b = ((first_char + i as u32) as u16).to_le_bytes().to_vec();
         b.extend_from_slice(body);
         bitmaps.extend(tag(36, &b, true));
@@ -245,10 +275,10 @@ fn build(src: &[u8]) -> Result<(Vec<u8>, u16), String> {
     // The sprite: its own tags (without End), one frame per icon, End.
     let mut body = Vec::new();
     body.extend_from_slice(&ICON_SPRITE.to_le_bytes());
-    body.extend_from_slice(&(frames + ICONS.len() as u16).to_le_bytes());
+    body.extend_from_slice(&(frames + icons.len() as u16).to_le_bytes());
     let end_tag = inner.last().filter(|t| t.code == 0).ok_or("icon sprite has no End tag")?;
     body.extend_from_slice(&src[sprite.body + 4..end_tag.start]);
-    for (i, (_, bmp)) in ICONS.iter().enumerate() {
+    for (i, bmp) in icons.iter().enumerate() {
         let size = u16_at(bmp, 1).max(u16_at(bmp, 3)) as f64;
         let depths: Vec<u16> = if i == 0 { live.iter().copied().collect() } else { vec![1] };
         for d in depths {
@@ -283,7 +313,9 @@ mod tests {
         let (Ok(src), Ok(out)) = (std::env::var("CM_GFX_SRC"), std::env::var("CM_GFX_OUT")) else {
             return;
         };
-        let (bytes, first) = super::build(&std::fs::read(src).unwrap()).unwrap();
+        let icons: Vec<Vec<u8>> =
+            super::ICONS.iter().map(|(_, png)| super::lossless2_body(&crate::pixels::decode_png(png).unwrap())).collect();
+        let (bytes, first) = super::build(&std::fs::read(src).unwrap(), &icons).unwrap();
         std::fs::write(out, bytes).unwrap();
         println!("first icon id {}", first);
     }

@@ -1,16 +1,17 @@
-"""Draw our own map icons (weapon, armor, rune) as PNGs in icons/, and write each as the body of a
-Flash DefineBitsLossless2 tag (without its character id) to plugin/src/icons/<name>.bin, which the
-plugin adds to the world map at startup (see plugin/src/gfx.rs).
+"""Draw our own map icons (weapon, armor, rune) as PNGs in icons/map/. The plugin reads those files
+at every start and adds them to the world map (see plugin/src/gfx.rs), so they can be edited or
+swapped for any square PNG; it also has these drawings built in, for a file that's missing.
+
+Existing files are kept (they may be edited): pass --force to redraw them.
 
 Each is a dark round seal with a coloured rim and a light glyph, the same footprint as the map's
 own round icons (87/88). Drawn at 4x and scaled down for smooth edges.
 
-    python tools/icons.py      (also run by generate.py)
+    python tools/icons.py [--force]     (generate.py runs it without --force)
 """
 import math
 import os
-import struct
-import zlib
+import sys
 
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -18,8 +19,7 @@ import common
 
 SIZE = 128          # final bitmap size; generate.py places it at ~72 px on the map
 SS = 4              # supersampling
-ICON_DIR = os.path.join(common.ROOT, "icons")
-BIN_DIR = os.path.join(common.ROOT, "plugin", "src", "icons")
+ICON_DIR = os.path.join(common.ROOT, "icons", "map")
 
 # name: (rim colour, glyph colour)
 STYLE = {
@@ -99,26 +99,16 @@ def draw(name):
     return im.resize((SIZE, SIZE), Image.LANCZOS)
 
 
-def lossless2_body(im):
-    """DefineBitsLossless2 after the character id: format 5 (32-bit), width, height, then zlib'd
-    rows of premultiplied [A, R, G, B]."""
-    im = im.convert("RGBA")
-    raw, px = im.tobytes(), bytearray()
-    for i in range(0, len(raw), 4):
-        r, g, b, a = raw[i:i + 4]
-        px += bytes((a, r * a // 255, g * a // 255, b * a // 255))
-    return struct.pack("<BHH", 5, im.width, im.height) + zlib.compress(bytes(px), 9)
-
-
-def main():
+def main(force=False):
     os.makedirs(ICON_DIR, exist_ok=True)
-    os.makedirs(BIN_DIR, exist_ok=True)
+    drawn = []
     for name in STYLE:
-        im = draw(name)
-        im.save(os.path.join(ICON_DIR, name + ".png"))
-        open(os.path.join(BIN_DIR, name + ".bin"), "wb").write(lossless2_body(im))
-    print(f"Wrote {len(STYLE)} icons to {ICON_DIR} and {BIN_DIR}")
+        path = os.path.join(ICON_DIR, name + ".png")
+        if force or not os.path.exists(path):
+            draw(name).save(path)
+            drawn.append(name)
+    print(f"Map icons in {ICON_DIR}: drew {', '.join(drawn) or 'none (all exist; --force redraws)'}")
 
 
 if __name__ == "__main__":
-    main()
+    main("--force" in sys.argv)

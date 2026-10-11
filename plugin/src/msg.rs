@@ -1,6 +1,7 @@
 //! Text the game shows, extended in memory:
 //! - marker labels: our own entries in the PlaceName text;
-//! - item descriptions: a "Class notes: ..." line at the end of every item a class note lists.
+//! - item descriptions: a line naming the classes (note icon + name in the class colour) at the
+//!   start of every item a class note lists.
 //!
 //! A loaded text file (FMG) is rebuilt into a larger buffer with our entries and its
 //! MsgRepository slot is pointed at the copy. Same approach as Map For Goblins - DLL
@@ -12,8 +13,10 @@
 //! base, _dlc01 and _dlc02. The game looks an id up in the highest layer first, so a description
 //! is changed in the highest layer that has it.
 
+use crate::generated::NOTES;
 use crate::inject::alloc_like;
 use crate::log;
+use crate::noteicons::NAME_PREFIX;
 use crate::scan;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -29,8 +32,39 @@ const CAPTION_SLOTS: [(u8, [usize; 3]); 4] = [
     (3, [26, 315, 415]), // ProtectorCaption
     (4, [27, 318, 418]), // AccessoryCaption
 ];
-/// Starts the line added to item descriptions.
-const CLASS_LINE: &str = "Class notes: ";
+/// On-screen size of a note's own (square) icon in the line, in pixels. The box puts an image's
+/// bottom on the text baseline and grows the line upward for anything taller (vspace is ignored),
+/// so the icon files are cut to sit on the baseline like a letter (tools/note_icons.py).
+const ICON_PX: u32 = 32;
+/// Our icon files are drawn at ICON_PX per this many image pixels, in both directions, so a file's
+/// own width and height count (the exported icons are this size: drawn at ICON_PX).
+const ICON_FILE_PX: u32 = 96;
+
+/// The line added to an item's description: each class with the icon of its note (ours from
+/// icons/notes if there is one, else the note's own item icon), its name in the class's colour.
+/// The description box understands simple HTML: <font color>, <u>, and <img> of atlas entries
+/// work; bold, italic, other fonts and alignment don't.
+fn class_line(notes: &[u32], colours: &HashMap<&str, String>) -> String {
+    let ours = crate::NOTE_ICONS.get();
+    let classes: Vec<String> = notes
+        .iter()
+        .filter_map(|id| NOTES.iter().find(|n| n.goods_id == *id))
+        .map(|note| {
+            let scale = |px: u32| ((ICON_PX * px + ICON_FILE_PX / 2) / ICON_FILE_PX).max(1);
+            let (name, width, height) = match ours.and_then(|o| o.get(&note.goods_id)) {
+                Some(&(w, h)) => (format!("{}{}", NAME_PREFIX, note.goods_id), scale(w), scale(h)),
+                None => (format!("MENU_ItemIcon_{:05}", note.icon), ICON_PX, ICON_PX),
+            };
+            let class = match colours.get(note.class) {
+                Some(c) => format!("<font color=\"{}\">{}</font>", c, note.class),
+                None => note.class.to_string(),
+            };
+            format!("<img src=\"img://{}\" width=\"{}\" height=\"{}\">{}", name, width, height, class)
+        })
+        .collect();
+    classes.join(", ")
+}
+
 /// Our label ids: far above anything the game or Convergence uses.
 pub const FIRST_TEXT_ID: i32 = 1_850_000_000;
 
@@ -194,16 +228,19 @@ pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> R
     Ok(())
 }
 
-/// End the description of every item in `captions` (ItemLot category, item id, class names) with
-/// "Class notes: <classes>". Returns how many descriptions were extended.
-pub fn add_class_lines(captions: &'static [(u8, u32, &'static str)]) -> Result<usize, String> {
+/// Start the description of every item in `captions` (ItemLot category, item id, [goods ids of the
+/// notes listing it]) with a line naming those classes. Returns how many descriptions were extended.
+pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result<usize, String> {
     let repo = repository()?;
+    let colours = log::dll_dir().map(|d| crate::colors::class_colors(d)).unwrap_or_default();
+    let classes: std::collections::HashSet<_> = NOTES.iter().map(|n| n.class).collect();
+    log!("Class colours: {} of {} classes", colours.len(), classes.len());
     let mut done = 0;
     for (category, slots) in CAPTION_SLOTS {
-        let wanted: HashMap<i32, &str> = captions
+        let wanted: HashMap<i32, &[u32]> = captions
             .iter()
             .filter(|(c, _, _)| *c == category)
-            .map(|&(_, id, classes)| (id as i32, classes))
+            .map(|&(_, id, listed)| (id as i32, listed))
             .collect();
         if wanted.is_empty() {
             continue;
@@ -225,7 +262,7 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static str)]) -> Result<u
             let mine: HashMap<i32, String> = owner
                 .iter()
                 .filter(|(_, &o)| o == l)
-                .map(|(&id, _)| (id, format!("\n\n{}{}", CLASS_LINE, wanted[&id])))
+                .map(|(&id, _)| (id, class_line(wanted[&id], &colours)))
                 .collect();
             if mine.is_empty() {
                 continue;
@@ -234,10 +271,12 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static str)]) -> Result<u
             let entries: Entries = Box::new(move |fmg| {
                 unsafe { read_fmg(fmg) }
                     .into_iter()
-                    .filter_map(|(id, mut text)| {
+                    .filter_map(|(id, text)| {
+                        // Our line first, then the description on the next line.
                         let line = mine.get(&id)?;
-                        text.extend(line.encode_utf16());
-                        Some((id, text))
+                        let mut out: Vec<u16> = format!("{}\n", line).encode_utf16().collect();
+                        out.extend(text);
+                        Some((id, out))
                     })
                     .collect()
             });
