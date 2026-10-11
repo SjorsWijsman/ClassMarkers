@@ -258,6 +258,67 @@ for rid, b in WMP.items():
         NAMED_ROWS.append({"row": rid, "name": PLACE[t], "boss": icon == 499, "at": _world_xz(b)})
 
 
+# NPC markers: Convergence's map rows that name an NPC (a line of text type 1 = NpcName), e.g. Sage
+# Gowry or Ranni the Witch (one row per place the NPC can be).
+NPC_NAMES = {}
+for _f in ("NpcName", "NpcName_dlc01", "NpcName_dlc02"):
+    _p = f"{common.ITEM_DIR}/{_f}.fmg.json"
+    if os.path.exists(_p):
+        NPC_NAMES.update({int(k): v for k, v in json.load(open(_p, encoding="utf-8")).items() if v})
+NPC_ROWS = []
+for rid, b in WMP.items():
+    for k in range(8):
+        t = struct.unpack_from("<i", b, 0x30 + 12 * k)[0]
+        if b[0x90 + k] == 1 and t in NPC_NAMES and "<" not in NPC_NAMES[t]:
+            NPC_ROWS.append({"row": rid, "name": NPC_NAMES[t]})
+# Words of an NPC's name that don't identify them on their own ("Sage Gowry": only "gowry" counts).
+NPC_TITLE_WORDS = {"the", "of", "sage", "sorcerer", "sorceress", "witch", "knight", "merchant", "warrior",
+                   "scout", "noble", "hunter", "bloody", "finger", "half", "wolf", "castellan", "pureblood",
+                   "scribe", "brother", "white", "mask", "limgrave", "heir", "carian", "servant", "redmane",
+                   "old", "abandoned", "hermit", "imprisoned", "isolated", "nomadic", "survivalist",
+                   "woodsman", "gatekeeper", "war", "counselor", "fire", "needle", "lightseeker", "potentate",
+                   "dryleaf", "reader", "crone", "dung", "eater", "heartbroken", "maiden", "jar", "bairn",
+                   "demi", "human", "beholder", "death", "dead", "sir", "rya", "d"}
+
+
+def npc_rows_for_text(loc):
+    """The NPC markers whose NPC the note's location text names ("Given by Gowry", "Ranni's
+    Quest", "Patches Quest"): a word of the NPC's name that isn't just a title."""
+    from matching import norm
+    words = set(norm(loc))
+    out = []
+    for r in NPC_ROWS:
+        own = {w for w in norm(r["name"]) if w not in NPC_TITLE_WORDS and len(w) >= 4}
+        if own & words:
+            out.append(r)
+    names = {r["name"] for r in out}
+    return out if len(names) == 1 else []    # two different NPCs named: don't guess
+
+
+def maps_for_entity(n, script):
+    """Map files an entity id may be placed in: its own map (from its digits, else the script's),
+    and for overworld tiles the low-detail maps covering it (_01: 2x2 tiles, _02: 4x4), where the
+    game keeps very large bosses (Borealis is in m60_13_14_02)."""
+    m = map_for_id(n) or (script if script in ALL_MAPS else None)
+    if not m:
+        return []
+    out = [m]
+    if m[:3] in ("m60", "m61"):
+        gx, gz = int(m[4:6]), int(m[7:9])
+        out += [f"{m[:3]}_{gx // 2:02d}_{gz // 2:02d}_01", f"{m[:3]}_{gx // 4:02d}_{gz // 4:02d}_02"]
+    return [x for x in out if x in ALL_MAPS]
+
+
+def map_of_lot(lot):
+    """The map a lot belongs to, when nothing gives its spot: from its id's digits, else the one
+    map script that awards it (not the common script)."""
+    m = map_for_id(lot)
+    if m:
+        return m
+    scripts = {s for s, _, _ in lot_in_events(lot) if s in ALL_MAPS}
+    return scripts.pop() if len(scripts) == 1 else None
+
+
 def region_words(row):
     """Words of the region label nearest to a row ("East Caelid - Dragonbarrow"), same area only."""
     from matching import norm
@@ -399,12 +460,14 @@ def locate(cat, item_id, loc_text):
         # 2. an event script that hands out the lot, tied to an entity in a map
         for script, line, nums in lot_in_events(lot):
             for n in nums:
-                m = map_for_id(n) or (script if script in ALL_MAPS else None)
-                ms = msb(m) if m else None
-                if ms and n in ms["entity"]:
-                    p = ms["entity"][n]
-                    results.append({"how": "event", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag})
-                    found = True
+                for m in maps_for_entity(n, script):
+                    ms = msb(m)
+                    if ms and n in ms["entity"]:
+                        p = ms["entity"][n]
+                        results.append({"how": "event", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag})
+                        found = True
+                        break
+                if found:
                     break
             if found:
                 break
@@ -454,6 +517,20 @@ def locate(cat, item_id, loc_text):
     if not any(r["how"] in PLACED for r in results):
         for r in place_for_text(loc_text):
             results.append({"how": "boss-marker" if r["boss"] else "place-name", "row": r["row"], "boss": r["name"]})
+    on_map = ("boss-marker", "place-name")
+    # 8. ... or names an NPC that has a marker (quests and gifts)
+    if not any(r["how"] in PLACED + on_map for r in results):
+        for r in npc_rows_for_text(loc_text):
+            results.append({"how": "npc-marker", "row": r["row"], "boss": r["name"]})
+    # 9. only the map is known (the lot's id, or the one map script awarding it): the map's boss
+    # marker, the dungeon's entrance or the tile (see generate.py Placer.place_on_map)
+    if not any(r["how"] in PLACED + on_map + ("npc-marker",) for r in results):
+        for r in [r for r in results if r["how"] == "lot-only"]:
+            m = map_of_lot(r["lot"])
+            if m:
+                defeat = re.search(r"defeat|drop|killed|slain|invasion|invader", loc_text, re.I) is not None
+                results.append({"how": "map-area", "map": m, "boss": defeat, "lot": r["lot"], "flag": r["flag"]})
+                break
     return results
 
 

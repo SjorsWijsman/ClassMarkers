@@ -339,7 +339,7 @@ spelling difference between the note and the item's real name.
 | Frost Witch | weapon | Zamor Star Mace | Zamor Star Mace | exact | yes |
 | Frost Witch | weapon | Icerind Hatchet | Icerind Hatchet | exact | yes |
 | Frost Witch | weapon | Royal Greatsword | Royal Greatsword | exact | yes |
-| Frost Witch | weapon | Rimeheart | Rimeheart | exact | no |
+| Frost Witch | weapon | Rimeheart | Rimeheart | exact | yes |
 | Frost Witch | weapon | Einar's Hammer | Einar's Hammer | exact | yes |
 | Frost Witch | weapon | Snow Witch Staff | Snow Witch Staff | exact | yes |
 | Frost Witch | weapon | Ice Crest Shield | Ice Crest Shield | exact | yes |

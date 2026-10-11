@@ -117,7 +117,7 @@ The note's name differs from the item's real name; the item was found by the rul
 | Perfumer | Omenkiller Set | 4 | Omenkiller Boots, Omenkiller Long Gloves, Omenkiller Robe, Omensmirk Mask | set |
 | Perfumer | Perfumer Set | 4 | Perfumer Gloves, Perfumer Hood, Perfumer Robe, Perfumer Sarong | set |
 
-## Not placed (42)
+## Not placed (41)
 
 Entries matched to an item but without a map position yet.
 
@@ -149,7 +149,6 @@ Entries matched to an item but without a map position yet.
 | Necromancer | weapon | Death Ritual Spear | Death Rite Bird in Mountaintops | drop source not traced (likely an unmodified base-game event script) |
 | Necromancer | weapon | Rosus' Harvester | Tibia Mariner in Altus | drop source not traced (likely an unmodified base-game event script) |
 | Frost Witch | rune | Shining Rune of Frost | Given by Ranni after finding the Fingerslayer Blade | NPC quest or gift |
-| Frost Witch | weapon | Rimeheart | Dropped by Borealis | drop source not traced (likely an unmodified base-game event script) |
 | Aberrant Heretic | weapon | Crimson Briar-Bough | Cave of Knowledge | drop source not traced (likely an unmodified base-game event script) |
 | Fundamentalist | armor | Goldmask's Set | Given by Goldmask after uncovering Marika's secret | NPC quest or gift |
 | Fundamentalist | armor | Circlet of Light | Found after defeating Promised Consort | drop source not traced (likely an unmodified base-game event script) |

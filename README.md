@@ -68,7 +68,10 @@ plugin and puts it back in the launch profiles (an update replaces them).
 
 - Item positions come from Convergence's own data: item lots → map-file treasure positions, or
   the boss/NPC whose defeat awards the lot (event scripts). Items in caves/catacombs/tunnels/gaols
-  are placed on the dungeon's entrance icon.
+  are placed on the dungeon's entrance icon. When nothing gives an exact spot: an NPC the note names that has a map
+  marker (quests: "Given by Gowry" goes on Gowry), else the map the item's lot belongs to (its id,
+  or the one map script that awards it), on a boss marker there the note names, the dungeon's
+  entrance, a landmark or the tile's middle.
 - The world map only draws a `WorldMapPointParam` row if its **row id encodes its map block**
   (`AABBnn` for dungeon map mAA_BB, `PPGGZZnn` for world tile GG/ZZ). The plugin picks a free `nn`.
 - Labels are added to the PlaceName text (ids from 1,850,000,000) before any marker uses them.

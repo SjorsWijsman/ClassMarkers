@@ -170,6 +170,36 @@ class Placer:
         return dict(block=aa * 100 + bb, area=aa, gx=bb, gz=0, x=pos[0], y=pos[1], z=pos[2],
                     disp_mask=self.disp_mask_for_area(aa, bb), text_id=text_id, how="exact-dungeon")
 
+    def place_on_map(self, mapname, prefer_boss, loc):
+        """A placement when only the map is known: a boss marker there that the note's location
+        text `loc` names a word of ("Dakk" -> "Dakk, Starcaller Lord"; first when `prefer_boss`:
+        the note talks about a defeat, drop or invasion), else the dungeon's entrance or a named
+        place in the overworld tile, else the tile's middle. None if there's nothing to put it on.
+        A boss the note doesn't name is never used: its label would point at the wrong fight."""
+        mapname, _ = small_tile(mapname, (0.0, 0.0, 0.0))
+        aa, bb, cc = int(mapname[1:3]), int(mapname[4:6]), int(mapname[7:9])
+        if aa in OVERWORLD_AREAS:
+            here = [i for i in self.rows.values() if (i["area"], i["gx"], i["gz"]) == (aa, bb, cc)]
+        else:
+            here = list(self.by_block.get(aa * 100 + bb, []))
+        from matching import norm
+        def words(text):   # words, and neighbours joined ("Death Bird" also says "deathbird")
+            w = norm(text)
+            return {x for x in w + [p + q for p, q in zip(w, w[1:])] if len(x) >= 4}
+        said = words(loc)
+        bosses = [i for i in here if i["icon"] == BOSS_ICON and said & words(self.place_names.get(i["text_id"], ""))]
+        named = [i for i in here if i["icon"] != BOSS_ICON and i["text_id"] in self.place_names]
+        entrance = None if aa in OVERWORLD_AREAS else self.entrance_row(aa, bb)
+        for pick in ((bosses if prefer_boss else []) + ([entrance] if entrance else []) + named + bosses):
+            p = self.place_on_row(pick["id"])
+            p["how"] = "map-area"
+            return p
+        if aa in OVERWORLD_AREAS:
+            return dict(block=self.prefix_for_tile(aa, bb, cc) * 10000 + bb * 100 + cc, area=aa, gx=bb, gz=cc,
+                        x=0.0, y=0.0, z=0.0, disp_mask=1 if aa == 60 else 4,
+                        text_id=self.nearest_place_name(aa, bb, cc, 0.0, 0.0), how="map-area")
+        return None
+
     def place_on_row(self, rid):
         r = self.rows[rid]
         return dict(block=rid // 100, area=r["area"], gx=r["gx"], gz=r["gz"], x=r["pos"][0],
@@ -192,9 +222,13 @@ def build_markers(classes, report, placer):
         for res in entry["results"]:
             if res["how"] in locate.PLACED:
                 p = placer.place(res["map"], res["pos"])
-            elif res["how"] in ("boss-marker", "place-name"):
+            elif res["how"] in ("boss-marker", "place-name", "npc-marker"):
                 p = placer.place_on_row(res["row"])
                 p["how"] = res["how"]
+            elif res["how"] == "map-area":
+                p = placer.place_on_map(res["map"], res["boss"], entry["loc"])
+                if p is None:
+                    continue
             else:
                 continue
             note = weapons_note[entry["class"]] if entry["kind"] == "weapon" else path_note[entry["class"]]
