@@ -1,118 +1,172 @@
+![Class Markers: see where to go, track what you found, identify class items and spells](docs/class_markers_banner.png)
+
 # Class Markers for The Convergence
 
-Adds world-map markers for the items listed in The Convergence's class notes
-("Note: Path of the …" / "Note: Weapons for …"): spell runes, armor and weapons, labelled with the
-item name and its location. Item descriptions start with a line naming the classes whose notes
-list the item (or a rune that teaches it) or that start with it, each with its note's icon and in
-a colour taken from it. A note's markers show while that note is in your inventory (put a note in
-the storage chest to stop tracking that class, take it out to track it again); a marker hides
-once you've picked its item up there, or have it in your inventory or storage chest. Each marker
-shows its class note's icon with an outline and a glow in the class colour, and its text names
-the item and repeats where the note says to find it, after the note's icon.
-The class notes themselves become trackers: every note is rewritten in one layout (class and
-progress, its intro, then its runes / armor / weapons with counts), entries in the class colour,
-turning grey once found.
-A DLL loaded by me3 — Convergence's files and the game files are not modified (apart from one
-fenced entry added to Convergence's launch profiles).
+[![Latest release](https://img.shields.io/github/v/release/SjorsWijsman/ClassMarkers)](https://github.com/SjorsWijsman/ClassMarkers/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Icons
+A mod for ELDEN RING's [The Convergence](https://www.nexusmods.com/eldenring/mods/3419) overhaul
+that puts the items from your class notes on the world map and tracks what you've found.
 
-The plugin makes every icon itself from Convergence's own art when the game starts
-(`plugin/src/iconcache.rs`: the class notes from the menu atlas, the runes from their detail
-images), so this repo and the releases contain none of it. They're cached in `mod/icons/` and
-remade only when Convergence's menu files, `icons/colors.txt` or an override change (a few seconds).
+The Convergence's class notes ("Note: Path of the …" / "Note: Weapons for …") list the spell runes,
+armor and weapons that suit a class, and where to find them. Class Markers turns those lists into
+map markers and checklists.
 
-| File (in `mod/icons/`, overridable in `icons/`) | What |
-|---|---|
-| `notes/<Class> (path).png` / `(weapons).png` | Next to the class names in item descriptions and notes: the note without its tail, two thirds of a 96 px square, on its bottom edge (a text box puts an image's bottom on the baseline; 96 image px = 32 screen px) |
-| `map/<Class> (path).png` / `(weapons).png` | Map markers: the whole note, its paper at the centre, a thin black outline and a glow in the class colour (any square PNG, drawn ~84 px) |
-| `map/<Class> (<Tier> rune).png` | Spell rune markers, one per tier, from the rune's detail image, same outline and glow |
+## Features
 
-To change one, copy it from `mod/icons/` to the same place under `icons/` and edit it there: a
-file in `icons/` always wins. Class colours (description text and map glow) are the most vivid
-colour of the class's `notes/` icon; a line in `icons/colors.txt` (`Class = #RRGGBB`) overrides
-one. The rune markers' icons are made with the game's Oodle; if it isn't loaded yet when the
-plugin starts, they're made on a thread and used from the next start.
+- **Map markers** for every item in the class notes you carry, with the class's icon, the item's
+  name and the note's hint on where to find it. Spell runes show their own rune tier.
+- **Only what you're tracking:** a note's markers show while that note is in your inventory. Put a
+  note in the storage chest to stop tracking that class, take it out to track it again.
+- **Markers disappear** once you have the item: picked up, in your inventory or in the chest.
+- **Class notes as checklists:** each note shows your progress ("Nox Oracle 5 / 10 found"), and
+  found entries turn grey.
+- **Item descriptions** start with the classes whose notes list the item, or that start with it,
+  each with its class colour and icon.
+- **Nothing is overwritten:** The Convergence's files and the game's files stay untouched. The mod
+  is a plugin for Convergence's launcher, plus one entry it adds to Convergence's launch profiles,
+  which `Uninstall.bat` removes again.
 
-## Layout
+## For players
 
-| Path | What |
-|---|---|
-| `plugin/` | Rust DLL. Grows `WorldMapPointParam` and the PlaceName text in memory at startup. |
-| `plugin/src/generated.rs` | Marker data, written by `tools/generate.py`. Don't edit by hand. |
-| `tools/generate.py` | Reads Convergence's files and writes `generated.rs`. |
-| `icons/` | Overrides for the generated icons, and `colors.txt` (see Icons above). |
-| `tools/profiles.ps1` | Used by `Install.bat` / `Uninstall.bat`. |
-| `tools/update.ps1` | Used by `Update.bat`: generate, build, profiles. |
-| `mod/` | Made by the plugin (not in git): our me3 package (world map movie and menu icon textures with our icons) and the icon cache (`mod/icons/`). |
-| `available_map_icons.png` | Every icon the map can show, with its icon id. |
+### Requirements
 
-## Setup on a new machine
+- ELDEN RING with [The Convergence](https://www.nexusmods.com/eldenring/mods/3419) installed,
+  started with `Start_Convergence.bat`.
+- Note: Works with Seamless Co-op (Convergence's Seamless profile is set up too).
 
-1. Clone anywhere (e.g. `D:\Code\Elden Ring Mods\ClassMarkers`).
-2. Create `convergence_path.txt` in the project root containing the ConvergenceER folder path, e.g.
+### Install
+
+1. Download `ClassMarkers-<version>.zip` from the
+   [latest release](https://github.com/SjorsWijsman/ClassMarkers/releases/latest).
+2. Unzip it into your `ConvergenceER` folder, so you get `ConvergenceER\ClassMarkers` next to
+   Convergence's `mod` and `me3` folders.
+3. Run `ClassMarkers\Install.bat`.
+4. Start the game with `Start_Convergence.bat` as usual.
+
+The first start takes a few seconds longer: the mod makes its icons from The Convergence's own art.
+The spell rune markers may only get their rune icons from the second start.
+
+### How to use it
+
+Pick up a class note (or keep the one you start with) and open the map: the items it lists are
+marked. Hover a marker for the item and the note's hint. Open the note in your inventory to see
+what you've found. Put notes you're not interested in in the storage chest.
+
+### After a Convergence update
+
+Run `Install.bat` again: Convergence's updates replace its launch profiles, and with them our
+entry. The markers are made for a specific Convergence version; if things are missing or
+misplaced after an update, check the [releases](https://github.com/SjorsWijsman/ClassMarkers/releases)
+for a newer Class Markers.
+
+### Uninstall
+
+Run `Uninstall.bat`, then delete the `ClassMarkers` folder.
+
+### Make it yours
+
+The icons the mod makes are kept in `ClassMarkers\mod\icons\`. To change one, copy it to the same
+place under `ClassMarkers\icons\` and edit it there: a file in `icons\` always wins.
+
+| File                                              | What                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `icons\notes\<Class> (path).png`, `(weapons).png` | The class icons in item descriptions and notes                            |
+| `icons\map\<Class> (path).png`, `(weapons).png`   | The map markers                                                           |
+| `icons\map\<Class> (<Tier> rune).png`             | The spell rune markers, one per rune tier                                 |
+| `icons\colors.txt`                                | Class colours (`Class name = #RRGGBB`) for the text and the markers' glow |
+
+### Troubleshooting
+
+- **Something's missing or wrong:** `ClassMarkers\ClassMarkers.log` is written at every start and
+  says what was added, and why if something wasn't. Please attach it when you
+  [open an issue](https://github.com/SjorsWijsman/ClassMarkers/issues).
+- **No markers at all:** check that you carry a class note, and that you started the game with
+  `Start_Convergence.bat` after running `Install.bat`.
+- **A few items have no marker:** about 15 note entries can't be placed from the game's data
+  (Roundtable Hold merchants, some quest NPCs). Their notes still track them.
+
+## For developers
+
+Everything below is about building the mod from source; players don't need it.
+
+### Building from source
+
+Needs Windows, [Rust](https://rustup.rs), Python 3.10+ with `cryptography`, and The Convergence
+installed.
+
+1. Clone the repo anywhere.
+2. Create `convergence_path.txt` in the repo root holding your `ConvergenceER` folder, e.g.
    `D:\Games\Elden Ring The Convergence\ConvergenceER`.
-3. Python 3.10+ with `cryptography`, then: `pip install --target tools/pylib zstandard`.
-4. `cd tools && python generate.py`, then `cd ../plugin && cargo build --release` and copy
-   `plugin/target/release/ClassMarkers.dll` to the project root.
-5. Run `Install.bat`. It adds the plugin to Convergence's `.me3` profiles and links
-   `ConvergenceER\ClassMarkers` to this folder. Start the game with `Start_Convergence.bat`.
+3. `pip install --target tools/pylib zstandard`
+4. Run `Update.bat`. It reads Convergence's files (`tools/generate.py`), builds the plugin, copies
+   `ClassMarkers.dll` to the repo root and installs it into Convergence's launch profiles (linking
+   `ConvergenceER\ClassMarkers` to the repo).
 
-After a Convergence update: close the game and run `Update.bat`. It re-reads Convergence's files,
-rebuilds the plugin and puts it back in the launch profiles (an update replaces them). The icons
-remake themselves at the next start.
+Run `Update.bat` again after code changes or a Convergence update (close the game first).
+
+### Project layout
+
+| Path                      | What                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| `plugin/`                 | The plugin (Rust DLL loaded by me3).                                                      |
+| `plugin/src/generated.rs` | Marker and note data, written by `tools/generate.py`. Don't edit by hand.                 |
+| `tools/generate.py`       | Reads Convergence's files and writes `generated.rs`.                                      |
+| `tools/profiles.ps1`      | Adds/removes our entry in Convergence's launch profiles (`Install.bat`, `Uninstall.bat`). |
+| `tools/update.ps1`        | `Update.bat`: generate, build, install.                                                   |
+| `tools/package.ps1`       | Packs a release zip into `dist/`.                                                         |
+| `docs/player-readme.md`   | The README inside the release zip.                                                        |
+| `icons/`                  | `colors.txt`, and players' icon overrides.                                                |
+| `mod/`                    | Made by the plugin (not in git): our me3 package and the icon cache.                      |
+
+### How it works
+
+- **Item positions** come from Convergence's data: item lots → treasure positions in the map
+  files, or the boss/NPC whose defeat awards the lot (event scripts). Items in caves, catacombs,
+  tunnels and gaols go on the dungeon's entrance icon. Without an exact spot: an NPC the note names
+  that has a map marker ("Given by Gowry" → Gowry), else the map the lot belongs to, on a boss
+  marker there the note names, the dungeon's entrance, a landmark or the tile's middle.
+- **Markers** are rows added to `WorldMapPointParam` in memory at startup. The world map only draws
+  a row whose **id encodes its map block** (`AABBnn` for dungeon map `mAA_BB`, `PPGGZZnn` for world
+  tile `GG/ZZ`); the plugin picks a free `nn`. Visibility is switched at runtime through the row's
+  event flag (always-on / always-off flags), following which notes you carry and what you own.
+- **Text** (marker labels, the class line in descriptions, the rewritten notes) is added to the
+  game's text in memory. The notes' and items' own words are read from the game at startup;
+  `generated.rs` refers to them by note and line number.
+- **Map icons:** the map draws icon N as frame N of sprite 171 in `menu/02_120_worldmap.gfx`. The
+  plugin writes a copy of Convergence's movie with our bitmaps and frames to `mod/`, an me3 package
+  loaded after Convergence's.
+- **Text icons:** description boxes draw `<img src="img://NAME">` from the menu icon atlas
+  (`menu/hi/01_common.sblytbnd` + `01_common.tpf`, BC7). The plugin adds rows with our icons to a
+  copy of that texture and entries to its layout, in `mod/`.
+- **The icons themselves** are made at startup from Convergence's art (the note icons from the
+  menu atlas, the runes from their detail images, Oodle-compressed) and cached in `mod/icons/`;
+  only remade when Convergence's menu files, `colors.txt` or an override change.
+
+### Releasing
+
+GitHub builds releases (`.github/workflows/release.yml`): bump `version` in `plugin/Cargo.toml`,
+commit, then push a matching tag:
+
+```
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+The workflow checks the tag matches the version, builds the plugin, packs the zip with
+`tools/package.ps1` and attaches it to a new release. Installing from the zip needs no Python, Rust
+or `convergence_path.txt`.
 
 ## License and credits
 
-The code is MIT (see `LICENSE`). Nothing of ELDEN RING's or The Convergence's art or text is in
-this repo or the releases: the plugin reads the class notes, item names and art from the game at
-startup. `plugin/src/generated.rs` holds only numbers derived from Convergence's data (ids, flags,
-positions, which note line an entry is) and the class names. Release zips list the Rust crates in
-the DLL in `THIRD-PARTY-NOTICES.md`.
+The code is [MIT](LICENSE). None of ELDEN RING's or The Convergence's art or text is in the
+releases, and in this repo only the banner (`docs/class_markers_banner.png`, their logos and
+in-game screenshots) shows any: the plugin reads it from the game while it runs. `plugin/src/generated.rs` holds only
+numbers derived from Convergence's data (ids, flags, positions) and the class names. Release zips
+list the Rust crates in the DLL in `THIRD-PARTY-NOTICES.md`.
 
 - The technique for growing game tables and text in memory follows
   [Map For Goblins - DLL](https://github.com/VirusAlex/ERR-MapForGoblins-DLL) by VirusAlex (MIT).
 - Game structures: [fromsoftware-rs](https://github.com/vswarte/fromsoftware-rs) (MIT/Apache-2.0).
-- The Convergence by The Convergence team; ELDEN RING by FromSoftware.
-
-## Releases
-
-`tools/package.ps1` packs `dist/ClassMarkers-<version>.zip` for players: the DLL, `icons/`,
-`Install.bat`, `Uninstall.bat`, `tools/profiles.ps1` and `docs/player-readme.md` as its README,
-laid out to be unzipped into `ConvergenceER`. Installing from that folder needs no Python, Rust or
-`convergence_path.txt`.
-
-GitHub builds releases by itself (`.github/workflows/release.yml`): bump `version` in
-`plugin/Cargo.toml`, commit, then push a matching tag:
-
-    git tag v1.0.0
-    git push origin v1.0.0
-
-The workflow checks the tag matches the version, builds the plugin, packs the zip and attaches it
-to a new release with notes from the commits.
-
-## How it works (short)
-
-- Item positions come from Convergence's own data: item lots → map-file treasure positions, or
-  the boss/NPC whose defeat awards the lot (event scripts). Items in caves/catacombs/tunnels/gaols
-  are placed on the dungeon's entrance icon. When nothing gives an exact spot: an NPC the note names that has a map
-  marker (quests: "Given by Gowry" goes on Gowry), else the map the item's lot belongs to (its id,
-  or the one map script that awards it), on a boss marker there the note names, the dungeon's
-  entrance, a landmark or the tile's middle.
-- The world map only draws a `WorldMapPointParam` row if its **row id encodes its map block**
-  (`AABBnn` for dungeon map mAA_BB, `PPGGZZnn` for world tile GG/ZZ). The plugin picks a free `nn`.
-- Labels are added to the PlaceName text (ids from 1,850,000,000) before any marker uses them.
-- Icons: the map draws icon N as frame N of sprite 171 in `menu/02_120_worldmap.gfx`. At every
-  start, before the game loads its menus, the plugin copies Convergence's movie, adds our bitmaps
-  and one frame per icon (icon ids right after Convergence's last frame), and writes it to `mod/`,
-  an me3 package loaded after Convergence's. A Convergence update is picked up automatically; if
-  anything fails, the copy is made identical to Convergence's and markers use stock icon 88.
-- Note icons: the description box draws `<img src="img://NAME">` from the menu icon atlas
-  (`menu/hi/01_common.sblytbnd` = named rectangles, `01_common.tpf` = BC7 textures). The plugin
-  adds rows with our icons below the texture that holds the note icons, and entries
-  `MENU_ItemIcon_CM_<note id>` to its layout, in copies in `mod/`. Rebuilt only when an icon or
-  Convergence's files changed (`mod/menu/hi/class_markers_icons.stamp`).
-- Technique for growing params/text in memory follows
-  [Map For Goblins - DLL](https://github.com/VirusAlex/ERR-MapForGoblins-DLL) by VirusAlex (MIT).
-
-The plugin writes `ClassMarkers.log` next to the DLL on every launch.
+- The Convergence by The Convergence team; ELDEN RING by FromSoftware. Class Markers is a fan
+  project, not affiliated with either.

@@ -1,6 +1,7 @@
 # Class Markers for The Convergence
 
-Map markers and progress tracking for the items in The Convergence's class notes
+Map markers and progress tracking for the items in
+[The Convergence](https://www.nexusmods.com/eldenring/mods/3419)'s class notes
 ("Note: Path of the …" / "Note: Weapons for …").
 
 - **Map markers** for the spell runes, armor and weapons a class note lists, with the class's icon,

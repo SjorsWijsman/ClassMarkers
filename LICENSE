@@ -29,7 +29,9 @@ and its documentation. The plugin reads art and text from ELDEN RING and The
 Convergence while the game runs; none of it is included here. It does not
 cover the data in plugin/src/generated.rs that is derived from The
 Convergence's files (item and note ids, positions, event flags, class names),
-which is included only so the mod works with it.
+which is included only so the mod works with it, nor the banner
+docs/class_markers_banner.png, which shows the ELDEN RING and The Convergence
+logos and in-game screenshots.
 
 ELDEN RING is a trademark of FromSoftware / Bandai Namco. The Convergence is
 made by The Convergence team. Class Markers is a fan project, not affiliated
