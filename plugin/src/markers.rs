@@ -54,7 +54,7 @@ pub struct GenMarker {
     pub z: f32,
     /// Map layer bits: 1 = overworld, 2 = underground, 4 = Realm of Shadow.
     pub disp_mask: u8,
-    /// PlaceName text shown on hover (-1 = none).
+    /// PlaceName text shown on hover when our labels couldn't be added (-1 = none).
     pub text_id: i32,
     /// Which entry of its note this is: its line (notetext.rs), and the one item to name it after
     /// if it is one item (the game's spelling).
@@ -158,21 +158,21 @@ impl GenMarker {
         }
     }
 
-    /// The marker's row: line 1 = the place, then our text ids `texts` = (label "<class> - <item>",
-    /// hint "<note icon><where the note says>"), or just the place when there's no text of ours.
+    /// The marker's row: our text ids `texts` = (label "<class> - <item>", hint "<note icon><where
+    /// the note says>"), or just the place when there's no text of ours.
     /// `icons`: our icons (see gfx.rs): a spell rune marker gets its rune tier's icon, others (or
     /// without one) the note's icon, else the stock icon.
     pub fn row(&self, texts: Option<(i32, i32)>, icons: &MapIcons) -> Row {
         let line = |text_id| Line { text_id, text_type: 0 };
         let mut lines = Vec::new();
-        if self.text_id >= 0 || texts.is_none() {
-            lines.push(line(self.text_id));
-        }
-        if let Some((label, hint)) = texts {
-            lines.push(line(label));
-            if !self.hint().is_empty() {
-                lines.push(line(hint));
+        match texts {
+            Some((label, hint)) => {
+                lines.push(line(label));
+                if !self.hint().is_empty() {
+                    lines.push(line(hint));
+                }
             }
+            None => lines.push(line(self.text_id)),
         }
         Row {
             // Hidden until the visibility check (classes.rs) has seen that you own the note and
