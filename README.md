@@ -44,6 +44,8 @@ bottom edge. Changing note icons costs a few seconds once at the next start.
 | `icons/` | Our icons, read by the plugin at every start (see Icons above). |
 | `tools/note_icons.py` | Exports Convergence's note icons into `icons/notes/` and `icons/map/` (keeps existing files; `--force` overwrites). |
 | `tools/profiles.ps1` | Used by `Install.bat` / `Uninstall.bat`. |
+| `tools/update.ps1` | Used by `Update.bat`: generate, icons, build, profiles. |
+| `icons/exported.json` | Hashes of the icons `note_icons.py` wrote, to tell edited icons apart. |
 | `mod/` | Our me3 package (generated, not in git): the world map movie and menu icon textures with our icons. |
 | `available_map_icons.png` | Every icon the map can show, with its icon id. |
 
@@ -58,8 +60,9 @@ bottom edge. Changing note icons costs a few seconds once at the next start.
 5. Run `Install.bat`. It adds the plugin to Convergence's `.me3` profiles and links
    `ConvergenceER\ClassMarkers` to this folder. Start the game with `Start_Convergence.bat`.
 
-After a Convergence update: run `generate.py`, rebuild, and run `Install.bat` again (an update
-replaces the profiles).
+After a Convergence update: close the game and run `Update.bat`. It re-reads Convergence's files,
+refreshes the icons nobody edited (edited ones are kept, see `icons/exported.json`), rebuilds the
+plugin and puts it back in the launch profiles (an update replaces them).
 
 ## How it works (short)
 

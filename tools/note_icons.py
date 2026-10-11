@@ -18,7 +18,8 @@ cut off and the empty margins trimmed, then scaled to ART_SHARE of a square, wit
 bottom edge on the square's bottom edge, centred across.
 
 The icons come from the menu icon atlas (menu/hi/01_common.tpf + .sblytbnd), the same pixels the
-description box draws for MENU_ItemIcon_<id>. Existing files are kept: pass --force to overwrite.
+description box draws for MENU_ItemIcon_<id>. Icons you edited are kept; ones we exported and
+nobody changed are refreshed (icons/exported.json). Pass --force to overwrite everything.
 
     python tools/note_icons.py [--size 96] [--force]
 
@@ -26,6 +27,7 @@ Any PNG works in game, at any size and shape: 96 image pixels are drawn as 32 sc
 (ICON_FILE_PX / ICON_PX in plugin/src/msg.rs), so the default 96 px square is 32 px on screen.
 """
 import colorsys
+import hashlib
 import io
 import json
 import os
@@ -34,6 +36,8 @@ import re
 import struct
 import sys
 
+from collections import Counter
+
 from PIL import Image, ImageChops, ImageFilter
 
 import common
@@ -41,6 +45,7 @@ from dump_fmg import bnd4, dcx
 
 OUT_DIR = os.path.join(common.ROOT, "icons", "notes")
 MAP_DIR = os.path.join(common.ROOT, "icons", "map")
+MANIFEST = os.path.join(common.ROOT, "icons", "exported.json")   # see Exports
 MENU_HI = os.path.join(common.MOD, "menu", "hi")
 TAIL_WIDTH = 0.15   # rows narrower than this share of the paper's width are the tail
 ART_SHARE = 2 / 3   # the note's widest side, as a share of the square's side
@@ -264,9 +269,50 @@ def rune_icons(icon_of):
     return out
 
 
+def file_hash(path):
+    return hashlib.sha1(open(path, "rb").read()).hexdigest()
+
+
+class Exports:
+    """Which icon files we wrote, by hash (icons/exported.json), so an update can refresh the ones
+    nobody edited and keep the ones somebody did. Files there before the list existed are adopted
+    as they are (treated as ours, unedited)."""
+
+    def __init__(self, force):
+        self.force = force
+        self.adopt = not os.path.exists(MANIFEST)
+        self.hashes = {} if self.adopt else json.load(open(MANIFEST, encoding="utf-8"))
+        self.counts = Counter()
+
+    def key(self, path):
+        return os.path.relpath(path, os.path.dirname(MANIFEST)).replace("\\", "/")
+
+    def write(self, path, make):
+        """Write the icon `make()` makes to `path`, unless somebody edited the file there."""
+        if os.path.exists(path):
+            current = file_hash(path)
+            if self.adopt and not self.force:
+                self.hashes[self.key(path)] = current
+                self.counts["adopted"] += 1
+                return
+            if not self.force and self.hashes.get(self.key(path)) != current:
+                self.counts["kept (edited)"] += 1
+                return
+            self.counts["refreshed"] += 1
+        else:
+            self.counts["new"] += 1
+        make().save(path)
+        self.hashes[self.key(path)] = file_hash(path)
+
+    def save(self, what):
+        json.dump(self.hashes, open(MANIFEST, "w", encoding="utf-8"), indent=1, sort_keys=True)
+        print(f"{what}: " + (", ".join(f"{n} {k}" for k, n in sorted(self.counts.items())) or "nothing to do"))
+        self.counts.clear()
+
+
 def main():
     size = int(sys.argv[sys.argv.index("--size") + 1]) if "--size" in sys.argv else 96
-    force = "--force" in sys.argv
+    exports = Exports("--force" in sys.argv)
     from generate import goods_icons
     icon_of = goods_icons()
     listed = notes()
@@ -290,34 +336,27 @@ def main():
             (MAP_DIR, lambda img, cls, which: map_icon(img, glow_of(cls), f"{cls} ({which})")))
     for out_dir, make in sets:
         os.makedirs(out_dir, exist_ok=True)
-        written = kept = 0
         for note, cls, which in listed:
-            path = os.path.join(out_dir, file_name(cls, which))
             img = images.get(icon_of.get(note))
             if img is None:
                 print(f"  no icon found for {cls} ({which})")
-            elif os.path.exists(path) and not force:
-                kept += 1
-            else:
-                make(img, cls, which).save(path)
-                written += 1
-        print(f"Note icons in {out_dir}: wrote {written}, kept {kept} existing")
+                continue
+            exports.write(os.path.join(out_dir, file_name(cls, which)), lambda: make(img, cls, which))
+        exports.save(f"Note icons in {out_dir}")
 
     # Rune markers: each tier of the class's school rune (its detail image), framed on the whole art.
-    written = kept = 0
+    def rune(icon, cls, which):
+        art = rune_images[icon]
+        art = art.crop(art.getchannel("A").getbbox() or (0, 0, art.width, art.height))
+        scale = RUNE_PX / max(art.width, art.height)
+        art = art.resize((round(art.width * scale), round(art.height * scale)), Image.LANCZOS)
+        return map_icon(art, glow_of(cls), f"{cls} ({which})", on_paper=False, solid=RUNE_SOLID)
+
     for (cls, tier), icon in runes.items():
         which = f"{tier} rune"
-        path = os.path.join(MAP_DIR, file_name(cls, which))
-        if os.path.exists(path) and not force:
-            kept += 1
-        elif icon in rune_images:
-            art = rune_images[icon]
-            art = art.crop(art.getchannel("A").getbbox() or (0, 0, art.width, art.height))
-            scale = RUNE_PX / max(art.width, art.height)
-            art = art.resize((round(art.width * scale), round(art.height * scale)), Image.LANCZOS)
-            map_icon(art, glow_of(cls), f"{cls} ({which})", on_paper=False, solid=RUNE_SOLID).save(path)
-            written += 1
-    print(f"Rune icons in {MAP_DIR}: wrote {written}, kept {kept} existing")
+        if icon in rune_images:
+            exports.write(os.path.join(MAP_DIR, file_name(cls, which)), lambda: rune(icon, cls, which))
+    exports.save(f"Rune icons in {MAP_DIR}")
 
 
 if __name__ == "__main__":
