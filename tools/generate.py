@@ -34,6 +34,7 @@ def extract():
     sources = [
         os.path.join(common.MOD, "regulation.bin"),
         os.path.join(common.MOD, "msg", "engus", "item_dlc02.msgbnd.dcx"),
+        os.path.join(common.MOD, "msg", "engus", "menu_dlc02.msgbnd.dcx"),
     ]
     stamp_path = os.path.join(common.CACHE, "sources.json")
     stamp = {s: [os.path.getsize(s), int(os.path.getmtime(s))] for s in sources}
@@ -43,8 +44,9 @@ def extract():
     os.makedirs(common.CACHE, exist_ok=True)
     print("Extracting regulation.bin ...")
     extract_regulation(sources[0], common.REG_DIR)
-    print("Extracting item text ...")
+    print("Extracting item and menu text ...")
     extract_msgbnd(sources[1], common.ITEM_DIR)
+    extract_msgbnd(sources[2], common.MENU_DIR)
     json.dump(stamp, open(stamp_path, "w"))
 
 
@@ -261,12 +263,49 @@ def goods_icons():
     return {gid: struct.unpack_from("<H", b, 0x30)[0] for gid, b in r.items()}
 
 
+# Character creation: the class list's rows (CharMakeMenuListItemParam) are CLASS_LIST + n, and the
+# class starting from list row CLASS_LIST + n gets CharaInitParam row CLASS_START + n.
+CLASS_LIST = 100200
+CLASS_START = 3000
+# CharaInitParam fields with starting gear: (ItemLot category, first offset, count). Arrows, bolts
+# and the flasks and other goods every class starts with are left out.
+START_GEAR = [(2, 0x10, 4), (3, 0x20, 4), (4, 0x40, 4), (1, 0x60, 7)]
+
+
+def starting_gear():
+    """{class name: [(category, item id)]} for every class you can pick at character creation."""
+    from param import rows
+    menu = json.load(open(os.path.join(common.MENU_DIR, "GR_MenuText.fmg.json"), encoding="utf-8"))
+    listed, _ = rows(os.path.join(common.REG_DIR, "CharMakeMenuListItemParam.param"))
+    init, _ = rows(os.path.join(common.REG_DIR, "CharaInitParam.param"))
+    out = {}
+    for rid, b in listed.items():
+        start = CLASS_START + rid - CLASS_LIST
+        if not 0 <= rid - CLASS_LIST < 100 or start not in init:
+            continue
+        name = menu.get(str(struct.unpack_from("<i", b, 4)[0]))
+        gear = []
+        for cat, first, count in START_GEAR:
+            for k in range(count):
+                item = struct.unpack_from("<i", init[start], first + 4 * k)[0]
+                if item > 0:
+                    gear.append((cat, item - item % 100 if cat == 2 else item))   # weapon: drop the upgrade level
+        if name:
+            out[name] = gear
+    return out
+
+
 def class_captions(classes):
     """[((category, item id), [goods ids of the notes listing it])] for every item a class note
-    lists, one note per class, in class order. A plain weapon also covers its infused variants
-    (base + affinity * 100), which have their own descriptions; armor, talismans and goods are
-    exact ids."""
+    lists or a class starts with, one note per class, in class order (a starting item names the
+    class's weapons note for a weapon, else its path note). A plain weapon also covers its
+    infused variants (base + affinity * 100), which have their own descriptions; armor, talismans
+    and goods are exact ids."""
     import locate
+    start = starting_gear()
+    missing = [c["name"] for c in classes if c["name"] not in start]
+    if missing:
+        print("No starting class found for:", ", ".join(missing))
     weapon_variants = defaultdict(list)          # plain weapon id -> variant ids with a caption
     for f in ("WeaponCaption", "WeaponCaption_dlc01", "WeaponCaption_dlc02"):
         for k in json.load(open(os.path.join(common.ITEM_DIR, f + ".fmg.json"), encoding="utf-8")):
@@ -275,16 +314,20 @@ def class_captions(classes):
                 weapon_variants[i - i % 10000].append(i)
     out = {}
     for c in classes:
+        items = []                                # (category, item id, note)
         for kind, name, loc, siblings in locate.note_entries(c):
             note = (kind == "weapon" and c.get("weaponsId")) or c["pathId"]
-            for _, item, cat in locate.resolve_ids(kind, name, siblings):
-                if cat not in (1, 2, 3, 4):
-                    continue
-                ids = [item] + (weapon_variants.get(item, []) if cat == 2 and item % 10000 == 0 else [])
-                for i in ids:
-                    listed = out.setdefault((cat, i), [])
-                    if all(cls != c["name"] for cls, _ in listed):
-                        listed.append((c["name"], note))
+            items += [(cat, item, note) for _, item, cat in locate.resolve_ids(kind, name, siblings)]
+        for cat, item in start.get(c["name"], []):
+            items.append((cat, item, (cat == 2 and c.get("weaponsId")) or c["pathId"]))
+        for cat, item, note in items:
+            if cat not in (1, 2, 3, 4):
+                continue
+            ids = [item] + (weapon_variants.get(item, []) if cat == 2 and item % 10000 == 0 else [])
+            for i in ids:
+                listed = out.setdefault((cat, i), [])
+                if all(cls != c["name"] for cls, _ in listed):
+                    listed.append((c["name"], note))
     return sorted(out.items())
 
 
