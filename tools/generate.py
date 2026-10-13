@@ -92,7 +92,9 @@ class Placer:
     PP GG ZZ NN for world-map tiles. Verified in-game with test build 0.1.6.
     """
 
-    def __init__(self, wmp):
+    def __init__(self, wmp, place_names=None):
+        """`wmp`: WorldMapPointParam rows (id -> bytes); `place_names`: PlaceName text id -> text
+        (default: Convergence's, from the cache)."""
         self.rows = {rid: row_info(rid, b) for rid, b in wmp.items()}
         self.by_block = defaultdict(list)
         for rid, info in self.rows.items():
@@ -104,11 +106,12 @@ class Placer:
             if len(s) == 8 and info["area"] in OVERWORLD_AREAS and s[2:4] == f"{info['gx']:02d}" \
                     and s[4:6] == f"{info['gz']:02d}" and s[0] in "68":
                 self.tile_prefix[(info["area"], info["gx"], info["gz"])][int(s[:2])] += 1
-        PL = {}
-        for f in ["PlaceName", "PlaceName_dlc01", "PlaceName_dlc02"]:
-            p = os.path.join(common.ITEM_DIR, f + ".fmg.json")
-            PL.update({int(k): v for k, v in json.load(open(p, encoding="utf-8")).items()})
-        self.place_names = PL
+        if place_names is None:
+            place_names = {}
+            for f in ["PlaceName", "PlaceName_dlc01", "PlaceName_dlc02"]:
+                p = os.path.join(common.ITEM_DIR, f + ".fmg.json")
+                place_names.update({int(k): v for k, v in json.load(open(p, encoding="utf-8")).items()})
+        self.place_names = place_names
 
     def prefix_for_tile(self, area, gx, gz):
         here = self.tile_prefix.get((area, gx, gz))
@@ -724,6 +727,7 @@ def write_matching_report(classes, report):
 
 
 def main():
+    common.require_mod()
     extract()
     from build_data import build_classes
     classes = build_classes()

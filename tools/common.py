@@ -24,15 +24,18 @@ def convergence_dir():
 
 
 MOD = os.path.join(convergence_dir(), "mod")       # ...\ConvergenceER\mod
-if not os.path.isdir(MOD):
-    raise SystemExit(f"Convergence's mod folder not found at {MOD}. Put the ConvergenceER folder "
-                     f"path in {os.path.join(ROOT, 'convergence_path.txt')}.")
 CACHE = os.path.join(TOOLS, "cache")
 ITEM_DIR = os.path.join(CACHE, "item")             # decoded item text (FMG -> json)
 MENU_DIR = os.path.join(CACHE, "menu")             # decoded menu text
 REG_DIR = os.path.join(CACHE, "reg")               # params from regulation.bin
 GENERATED_RS = os.path.join(ROOT, "plugin", "src", "generated.rs")
 
+
+def require_mod():
+    """Stop with a helpful message if Convergence's mod folder isn't where we expect it."""
+    if not os.path.isdir(MOD):
+        raise SystemExit(f"Convergence's mod folder not found at {MOD}. Put the ConvergenceER folder "
+                         f"path in {os.path.join(ROOT, 'convergence_path.txt')}.")
 
 
 def elden_ring_game_dir():

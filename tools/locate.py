@@ -18,7 +18,9 @@ def resolve_ids(kind, name, siblings=()):
 
 def note_entries(c):
     """(kind, name, location text, sibling names) for every entry of a class's notes."""
-    return [("rune", n, l, ()) for n, l in c["runes"]] +            [("armor", n, l, tuple(o for o, _ in g if o != n)) for g in c["armor"] for n, l in g] +            [("weapon", n, l, ()) for n, l in c["weapons"]]
+    return ([("rune", n, l, ()) for n, l in c["runes"]]
+            + [("armor", n, l, tuple(o for o, _ in g if o != n)) for g in c["armor"] for n, l in g]
+            + [("weapon", n, l, ()) for n, l in c["weapons"]])
 
 
 # ---- item lots -------------------------------------------------------------

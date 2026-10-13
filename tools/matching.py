@@ -53,7 +53,7 @@ def _load(table):
     return out
 
 
-NAMES = {cat: _load(t) for cat, t in TABLES.items()}
+NAMES = {}                                  # category -> item name -> [ids]
 
 
 def norm(s):
@@ -73,12 +73,22 @@ def word_set(s):
     return frozenset(w for w in norm(s) if w not in ("of", "the", "and"))
 
 
-INDEX = {cat: {} for cat in TABLES}         # spelling key -> real names
-WORDS = {cat: {} for cat in TABLES}         # word set -> real names
-for _cat, _names in NAMES.items():
-    for _n in _names:
-        INDEX[_cat].setdefault(key(_n), []).append(_n)
-        WORDS[_cat].setdefault(word_set(_n), []).append(_n)
+INDEX = {}                                  # category -> spelling key -> real names
+WORDS = {}                                  # category -> word set -> real names
+
+
+def use_names(names):
+    """Match against `names` (category -> item name -> [ids]); tests pass their own."""
+    NAMES.clear()
+    NAMES.update({cat: names.get(cat, {}) for cat in TABLES})
+    for cat, by_name in NAMES.items():
+        INDEX[cat], WORDS[cat] = {}, {}
+        for n in by_name:
+            INDEX[cat].setdefault(key(n), []).append(n)
+            WORDS[cat].setdefault(word_set(n), []).append(n)
+
+
+use_names({cat: _load(t) for cat, t in TABLES.items()})   # Convergence's, from the cache
 
 
 def _items(cat, names):

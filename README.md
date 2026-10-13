@@ -104,6 +104,15 @@ installed.
 
 Run `Update.bat` again after code changes or a Convergence update (close the game first).
 
+### Checking changes
+
+- Plugin: `cargo fmt`, `cargo clippy --release` and `cargo test --release` in `plugin/`.
+- Generator rules (note matching, map placement): `python -m unittest discover -s tools/tests`.
+  These use made-up data, so they need no copy of The Convergence.
+- Generator output: `generated.rs` is committed, so after changing the generator run
+  `python tools/generate.py` and review `git diff plugin/src/generated.rs`. Every marker, item
+  and description line it gains or loses shows up there.
+
 ### Project layout
 
 | Path                      | What                                                                                      |
@@ -111,6 +120,7 @@ Run `Update.bat` again after code changes or a Convergence update (close the gam
 | `plugin/`                 | The plugin (Rust DLL loaded by me3).                                                      |
 | `plugin/src/generated.rs` | Marker and note data, written by `tools/generate.py`. Don't edit by hand.                 |
 | `tools/generate.py`       | Reads Convergence's files and writes `generated.rs`.                                      |
+| `tools/tests/`            | Tests for the generator's matching and placement rules.                                   |
 | `tools/profiles.ps1`      | Adds/removes our entry in Convergence's launch profiles (`Install.bat`, `Uninstall.bat`). |
 | `tools/update.ps1`        | `Update.bat`: generate, build, install.                                                   |
 | `tools/package.ps1`       | Packs a release zip into `dist/`.                                                         |
