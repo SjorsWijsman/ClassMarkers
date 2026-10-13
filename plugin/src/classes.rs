@@ -2,8 +2,9 @@
 //!
 //! Owning a note = it is in your inventory (not the storage chest), read through the game's own
 //! data (GameDataMan) on the game's thread. So you choose which classes to track: move a note to
-//! the chest (or drop it) to hide its markers, take it back out to show them again. If the inventory can't be
-//! read, owning falls back to "any of the note's pickup flags is on" (see generated::NOTES).
+//! the chest (or drop it) to hide its markers, take it back out to show them again. If the
+//! inventory can't be read, owning falls back to "any of the note's pickup flags is on" (see
+//! generated::NOTES).
 //!
 //! An item is obtained once you picked it up at the marked spot (its pickup flag is on), or it is
 //! in your inventory or storage chest (bought, found elsewhere, ...). Selling or dropping it later

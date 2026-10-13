@@ -39,6 +39,6 @@ file in `icons\` always wins. `icons\colors.txt` sets class colours (`Class name
 the text and the map markers' glow.
 
 The first start (and the first after a Convergence update) takes a few seconds longer while the
-icons are made. The spell rune markers may only get their own icons from the second start.
+icons are made.
 
 `ClassMarkers.log` (written at every start) says what was added, and why if something wasn't.

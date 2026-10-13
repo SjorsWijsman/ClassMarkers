@@ -1,7 +1,7 @@
 //! A text colour per class for the class line in item descriptions, taken from the class's note
-//! icon (ClassMarkers/icons/notes/<Class> (path).png, else its weapons icon), so a swapped icon
+//! icon (notes/<Class> (path).png, else its weapons icon, see iconcache.rs), so a swapped icon
 //! brings its colour along. Used for the class names in item descriptions; the map icons' glow is
-//! baked in the same colour by tools/note_icons.py. Lines in ClassMarkers/icons/colors.txt override it:
+//! made in the same colour (iconcache.rs). Lines in ClassMarkers/icons/colors.txt override it:
 //!
 //! ```text
 //! Servant of Rot = #9BC25A
@@ -32,7 +32,7 @@ pub fn class_colors(dll_dir: &Path) -> HashMap<&'static str, String> {
             if out.contains_key(note.class) {
                 continue;
             }
-            let path = crate::iconcache::icon_path(dll_dir, "notes", &format!("{} ({}).png", note.class, note.which));
+            let path = crate::iconcache::icon_path(dll_dir, "notes", &crate::iconcache::file_name(note.class, note.which));
             let Ok(bytes) = std::fs::read(path) else { continue };
             if let Some(c) = decode_png(&bytes).ok().and_then(|img| icon_colour(&img.data)) {
                 out.insert(note.class, c);

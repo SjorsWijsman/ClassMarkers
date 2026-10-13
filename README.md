@@ -45,7 +45,6 @@ map markers and checklists.
 4. Start the game with `Start_Convergence.bat` as usual.
 
 The first start takes a few seconds longer: the mod makes its icons from The Convergence's own art.
-The spell rune markers may only get their rune icons from the second start.
 
 ### How to use it
 

@@ -90,8 +90,8 @@ pub type OodleDecompress = unsafe extern "C" fn(
     *const u8, i64, *mut u8, i64, i32, i32, i32, *mut u8, i64, usize, usize, usize, i64, i32,
 ) -> i64;
 
-/// The game's Oodle decompressor (oo2core_6_win64.dll, next to eldenring.exe). Only looked up if
-/// it's already loaded unless `load`: loading a DLL while ours is still starting can deadlock.
+/// The game's Oodle decompressor (oo2core_6_win64.dll, next to eldenring.exe), loaded if needed
+/// when `load` (never from DllMain: loading a DLL under the loader lock can deadlock).
 pub fn oodle(load: bool) -> Option<OodleDecompress> {
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress, LoadLibraryA};
     unsafe {

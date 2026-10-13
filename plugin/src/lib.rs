@@ -2,10 +2,10 @@
 //! Class Markers: adds map markers for the items listed in your Convergence class notes.
 //!
 //! Markers (generated from Convergence's files, see tools/generate.py) are added to
-//! WorldMapPointParam at startup, labelled through the PlaceName text, and shown only while you
-//! own the class note that lists them and haven't obtained the item yet. Nothing on disk is modified. The approach for growing the
-//! marker table and text in memory follows Map For Goblins - DLL by VirusAlex (MIT):
-//! https://github.com/VirusAlex/ERR-MapForGoblins-DLL
+//! WorldMapPointParam at startup, labelled through the PlaceName text, and shown only while you own
+//! the class note that lists them and haven't obtained the item yet. Nothing on disk is modified.
+//! The approach for growing the marker table and text in memory follows Map For Goblins - DLL by
+//! VirusAlex (MIT): https://github.com/VirusAlex/ERR-MapForGoblins-DLL
 
 mod classes;
 mod colors;

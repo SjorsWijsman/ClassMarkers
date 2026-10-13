@@ -1,4 +1,4 @@
-//! Reading the icon PNGs in ClassMarkers/icons/.
+//! PNG reading and writing for our icons.
 
 /// An image as rows of [R, G, B, A] bytes.
 pub struct Rgba {

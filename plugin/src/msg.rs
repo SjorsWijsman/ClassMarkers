@@ -28,17 +28,17 @@ use std::time::Duration;
 const MSG_REPOSITORY_AOB: &str = "48 8B 3D ?? ?? ?? ?? 44 0F B6 30 48 85 FF 75";
 /// On-screen size of a note's own (square) icon in item descriptions, in pixels. A text box puts
 /// an image's bottom on the text baseline and grows the line upward for anything taller (vspace is
-/// ignored), so the icon files are cut to sit on the baseline like a letter (tools/note_icons.py).
+/// ignored), so the icon files are cut to sit on the baseline like a letter (iconart.rs text_icon).
 pub const ICON_PX: u32 = 32;
 /// The same on the map markers' text, which is smaller: an icon taller than its line pushes the
 /// line down.
 pub const MAP_ICON_PX: u32 = 22;
 /// Our icon files are drawn at `icon_px` per this many image pixels, in both directions, so a
-/// file's own width and height count (the exported icons are this size).
-const ICON_FILE_PX: u32 = 96;
+/// file's own width and height count (the icons we make are this size).
+const ICON_FILE_PX: u32 = crate::iconart::TEXT_ICON_PX;
 
-/// A note's icon as text markup, `icon_px` per ICON_FILE_PX: ours from icons/notes if there is one
-/// (noteicons.rs), else the note's own item icon. Used in item descriptions and the map markers'
+/// A note's icon as text markup, `icon_px` per ICON_FILE_PX: ours if there is one (noteicons.rs),
+/// else the note's own item icon. Used in item descriptions and the map markers'
 /// text. Text boxes understand simple HTML: <font color>, <u>, and <img> of atlas entries work;
 /// bold, italic, other fonts and alignment don't.
 pub fn note_img(note: &Note, icon_px: u32) -> String {

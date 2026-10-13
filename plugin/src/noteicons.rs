@@ -8,11 +8,11 @@
 //! layout gets an entry MENU_ItemIcon_CM_<note goods id> for each. Existing entries keep their
 //! coordinates, so everything else looks the same. Convergence's files are never touched.
 //!
-//! The icons are read from ClassMarkers/icons/notes/<Class> (path|weapons).png, so anyone can edit
-//! or swap them (tools/note_icons.py exports Convergence's as a start). A note without a file keeps
-//! its own icon. Rebuilding takes a few seconds, so it only happens when an icon or Convergence's
-//! files changed (a stamp file remembers what the copies were built from). When anything goes
-//! wrong the copies are made identical to Convergence's files and every note keeps its own icon.
+//! The icons are notes/<Class> (path|weapons).png: made from Convergence's art, or your own from
+//! ClassMarkers/icons/ (see iconcache.rs). A note without one keeps its own icon. Rebuilding takes
+//! a few seconds, so it only happens when an icon or Convergence's files changed (a stamp file
+//! remembers what the copies were built from). When anything goes wrong the copies are made
+//! identical to Convergence's files and every note keeps its own icon.
 
 use crate::generated::NOTES;
 use crate::log;
@@ -29,11 +29,6 @@ const STAMP: &str = "class_markers_icons.stamp";
 pub const NAME_PREFIX: &str = "MENU_ItemIcon_CM_";
 /// Empty pixels around each of our icons in the texture (a multiple of 4: one BC7 block).
 const GAP: u32 = 4;
-
-/// Must match file_name in tools/note_icons.py.
-fn file_name(class: &str, which: &str) -> String {
-    format!("{} ({}).png", class, which)
-}
 
 /// Note goods id -> (width, height) of our icon, for the notes that have one this session.
 pub type Available = HashMap<u32, (u32, u32)>;
@@ -71,7 +66,7 @@ fn update(dll_dir: &Path, ours: &Path, theirs: &Path) -> Result<Available, Strin
         stamp += &format!("|{}:{}:{:?}", f, m.len(), m.modified().ok());
     }
     for note in NOTES {
-        let path = crate::iconcache::icon_path(dll_dir, "notes", &file_name(note.class, note.which));
+        let path = crate::iconcache::icon_path(dll_dir, "notes", &crate::iconcache::file_name(note.class, note.which));
         let Ok(bytes) = fs::read(&path) else { continue };
         match decode_png(&bytes) {
             Ok(img) => {
@@ -335,7 +330,7 @@ mod tests {
         let src = std::path::Path::new(&src);
         let mut list = Vec::new();
         for n in crate::generated::NOTES {
-            if let Ok(b) = std::fs::read(std::path::Path::new(&icons).join(super::file_name(n.class, n.which))) {
+            if let Ok(b) = std::fs::read(std::path::Path::new(&icons).join(crate::iconcache::file_name(n.class, n.which))) {
                 list.push((n.goods_id, crate::pixels::decode_png(&b).unwrap()));
             }
         }

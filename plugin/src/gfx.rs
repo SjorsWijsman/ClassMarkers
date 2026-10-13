@@ -11,11 +11,10 @@
 //! existed when the game launched, so Install.bat puts a placeholder there. When anything goes
 //! wrong the copy is made identical to Convergence's file and the markers use a stock icon.
 //!
-//! Each marker shows its class note's icon, read at every start from
-//! ClassMarkers/icons/map/<Class> (path|weapons).png, and a spell rune marker the icon of its rune's
-//! tier, <Class> (<Tier> rune).png. They're used as they are (tools/note_icons.py exports them with
-//! outline and glow; any square PNG works). A rune marker without a tier icon uses its note's icon;
-//! a note without a file uses the stock icon.
+//! Each marker shows its class note's icon, map/<Class> (path|weapons).png, and a spell rune marker
+//! the icon of its rune's tier, map/<Class> (<Tier> rune).png: made from Convergence's art with
+//! outline and glow, or your own from ClassMarkers/icons/ (see iconcache.rs; any square PNG works).
+//! A rune marker without a tier icon uses its note's icon; a note without one uses the stock icon.
 
 use crate::generated::NOTES;
 use crate::log;
@@ -52,7 +51,7 @@ fn lossless2_body(img: &Rgba) -> Vec<u8> {
 
 /// Where a note's map icon file is.
 pub fn note_icon_path(dll_dir: &Path, class: &str, which: &str) -> std::path::PathBuf {
-    crate::iconcache::icon_path(dll_dir, "map", &format!("{} ({}).png", class, which))
+    crate::iconcache::icon_path(dll_dir, "map", &crate::iconcache::file_name(class, which))
 }
 
 /// Spell rune tiers, the first word of a rune's name ("Shimmering Rune of the Storm").
