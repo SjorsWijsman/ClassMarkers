@@ -1,7 +1,7 @@
 """Match the item names written in the class notes to real items in Convergence's data.
 
 The notes are hand-written, so names don't always equal the game's: spacing ("Long Bow" vs
-"Longbow"), possessives ("Rosus Axe" vs "Rosus' Axe"), accents ("Varre" vs "Varre"), typos
+"Longbow"), possessives ("Rosus Axe" vs "Rosus' Axe"), accents ("Varre" vs "Várre"), typos
 ("Blaphemous Blade"), word order ("Dragon Cult Crest" vs "Crest of the Dragon Cult"), several
 items in one entry ("Envoy's Horn & Coded Sword"), items listed under another section
 (talisman-like goods under armor), and armor sets named after a person instead of their pieces.

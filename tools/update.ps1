@@ -4,7 +4,7 @@
 #   3. tools/profiles.ps1  - put our entries back in Convergence's launch profiles (an update
 #                            replaces them)
 # The icons need nothing: the plugin remakes them from Convergence's art when that changes.
-# Needs Python (with the packages from the README) and Rust (cargo).
+# Needs Python (with the packages in tools/requirements.txt) and Rust (cargo).
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot                  # ...\ClassMarkers

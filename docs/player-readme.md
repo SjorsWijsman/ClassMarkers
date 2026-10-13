@@ -13,7 +13,7 @@ Map markers and progress tracking for the items in
 - **Item descriptions** start with the classes whose notes list the item, or that start with it.
 
 The Convergence's files and the game's files are not changed: the mod is a plugin loaded by
-Convergence's launcher, plus one entry it adds to Convergence's launch profiles.
+Convergence's launcher, plus an entry it adds to Convergence's launch profiles.
 
 ## Install
 
@@ -22,7 +22,8 @@ Convergence's launcher, plus one entry it adds to Convergence's launch profiles.
 2. Run `Install.bat`.
 3. Start the game with `Start_Convergence.bat` as usual (Seamless Co-op works too).
 
-The first start after installing or changing icons takes a few seconds longer.
+The first start (and the first after a Convergence update or an icon change) takes a few seconds
+longer while the mod makes its icons.
 
 **After a Convergence update** run `Install.bat` again (the update replaces the launch profiles).
 The markers are made for one Convergence version: if things are missing or misplaced after an
@@ -37,8 +38,5 @@ The icons are made from The Convergence's own art when the game starts, and kept
 spell rune tier). To change one, copy it to the same place under `icons\` and edit it there: a
 file in `icons\` always wins. `icons\colors.txt` sets class colours (`Class name = #RRGGBB`) for
 the text and the map markers' glow.
-
-The first start (and the first after a Convergence update) takes a few seconds longer while the
-icons are made.
 
 `ClassMarkers.log` (written at every start) says what was added, and why if something wasn't.

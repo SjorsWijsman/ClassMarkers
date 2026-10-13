@@ -1,7 +1,8 @@
 //! Text the game shows, extended in memory:
 //! - marker labels: our own entries in the PlaceName text;
 //! - item descriptions: a line naming the classes (note icon + name in the class colour) at the
-//!   start of every item a class note lists.
+//!   start of every item a class note lists;
+//! - the class notes' own descriptions, rewritten as progress trackers (tracker.rs).
 //!
 //! A loaded text file (FMG) is rebuilt into a larger buffer with our entries and its
 //! MsgRepository slot is pointed at the copy. Same approach as Map For Goblins - DLL

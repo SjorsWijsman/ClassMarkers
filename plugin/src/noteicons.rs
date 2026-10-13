@@ -221,7 +221,7 @@ fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Resu
 #[cfg(test)]
 mod tests {
     /// Builds from real files: CM_ATLAS_SRC=<Convergence's menu\hi> CM_ATLAS_OUT=<folder>
-    /// CM_ICONS=<icons\notes>.
+    /// CM_ICONS=<ClassMarkers\mod\icons\notes>.
     #[test]
     #[ignore = "needs real game files, see the CM_* variables above"]
     fn build_from_real_files() {

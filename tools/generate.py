@@ -4,9 +4,11 @@
 
 1. Extracts regulation.bin params and the English item and menu text from ConvergenceER\\mod into
    tools\\cache (skipped when the sources haven't changed since the last run).
-2. Parses the class notes into per-class item lists.
-3. Locates every listed item (pickups, boss/NPC rewards) in the map and event files.
+2. Parses the class notes into per-class item lists and matches them to real items (matching.py).
+3. Locates every listed item (pickups, boss/NPC rewards, enemy drops, shops, named places) in the
+   map, event and talk files (locate.py).
 4. Writes plugin\\src\\generated.rs, then the plugin is rebuilt with `cargo build --release`.
+5. Writes matching_report.md and matching_review.md (not in git: they quote Convergence's notes).
 """
 import json
 import re

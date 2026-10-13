@@ -1,6 +1,5 @@
 # Class colours: the class names in item descriptions and the glow of the map icons. Each class gets
-# the most vivid colour of its description icon (icons/notes); a line here overrides it:
+# the most vivid colour of its description icon; a line here overrides it:
 #   Class name = #RRGGBB
-# The plugin reads this at every start; the map icons' glow is baked in when you run
-# python tools/note_icons.py --force.
+# The plugin reads this at every start, and remakes the map icons' glow when it changes.
 Servant of Rot = #A8C76A

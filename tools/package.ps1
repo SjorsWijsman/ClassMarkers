@@ -1,6 +1,6 @@
 # Packs a release: dist\ClassMarkers-<version>.zip with what players need, laid out to be unzipped
 # into ConvergenceER (it holds a ClassMarkers folder). Run after building the plugin; GitHub runs it
-# for each version tag (.github/workflows/release.yml).
+# for each release (.github/workflows/release.yml).
 #   ClassMarkers\ClassMarkers.dll, icons\colors.txt, Install.bat, Uninstall.bat, tools\profiles.ps1,
 #   README.md (docs/player-readme.md), LICENSE, THIRD-PARTY-NOTICES.md (from cargo metadata)
 param([string]$Dll)   # the built plugin; default plugin\target\release\ClassMarkers.dll

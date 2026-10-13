@@ -1,3 +1,5 @@
+"""Read FromSoftware's file formats for the generator: DCX (compressed files), BND4 (binders) and
+FMG (text). Oodle-compressed DCX files are unpacked with the game's own oo2core_6_win64.dll."""
 import ctypes, struct, os, json
 
 import common

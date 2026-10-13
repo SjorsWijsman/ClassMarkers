@@ -24,7 +24,7 @@ map markers and checklists.
 - **Item descriptions** start with the classes whose notes list the item, or that start with it,
   each with its class colour and icon.
 - **Nothing is overwritten:** The Convergence's files and the game's files stay untouched. The mod
-  is a plugin for Convergence's launcher, plus one entry it adds to Convergence's launch profiles,
+  is a plugin for Convergence's launcher, plus an entry it adds to Convergence's launch profiles,
   which `Uninstall.bat` removes again.
 
 ## For players
@@ -91,8 +91,7 @@ Everything below is about building the mod from source; players don't need it.
 
 ### Building from source
 
-Needs Windows, [Rust](https://rustup.rs), Python 3.10+ and The Convergence
-installed.
+Needs Windows, [Rust](https://rustup.rs), Python 3.10+ and The Convergence installed.
 
 1. Clone the repo anywhere.
 2. Create `convergence_path.txt` in the repo root holding your `ConvergenceER` folder, e.g.
@@ -106,7 +105,11 @@ Run `Update.bat` again after code changes or a Convergence update (close the gam
 
 ### Checking changes
 
-- Plugin: `cargo fmt`, `cargo clippy --release` and `cargo test --release` in `plugin/`.
+GitHub runs these on every push (`.github/workflows/ci.yml`); run them locally before pushing.
+
+- Plugin, in `plugin/`: `cargo fmt`, `cargo clippy --release -- -D warnings` and
+  `cargo test --release`. CI uses the latest stable Rust, whose clippy can flag code an older one
+  accepts: keep yours current with `rustup update`.
 - Generator rules (note matching, map placement): `python -m unittest discover -s tools/tests`.
   These use made-up data, so they need no copy of The Convergence.
 - Generator output: `generated.rs` is committed, so after changing the generator run
@@ -120,11 +123,13 @@ Run `Update.bat` again after code changes or a Convergence update (close the gam
 | `plugin/`                 | The plugin (Rust DLL loaded by me3).                                                      |
 | `plugin/src/generated.rs` | Marker and note data, written by `tools/generate.py`. Don't edit by hand.                 |
 | `tools/generate.py`       | Reads Convergence's files and writes `generated.rs`.                                      |
+| `tools/requirements.txt`  | The generator's Python packages.                                                          |
 | `tools/tests/`            | Tests for the generator's matching and placement rules.                                   |
 | `tools/profiles.ps1`      | Adds/removes our entry in Convergence's launch profiles (`Install.bat`, `Uninstall.bat`). |
 | `tools/update.ps1`        | `Update.bat`: generate, build, install.                                                   |
 | `tools/package.ps1`       | Packs a release zip into `dist/`.                                                         |
 | `docs/player-readme.md`   | The README inside the release zip.                                                        |
+| `.github/workflows/`      | `ci.yml` checks every push; `cd.yml` and `release.yml` publish releases (see Releasing).   |
 | `icons/`                  | `colors.txt`, and players' icon overrides.                                                |
 | `mod/`                    | Made by the plugin (not in git): our me3 package and the icon cache.                      |
 
@@ -135,7 +140,8 @@ Run `Update.bat` again after code changes or a Convergence update (close the gam
   tunnels and gaols go on the dungeon's entrance icon. Without an exact spot: an NPC the note names
   that has a map marker ("Given by Gowry" → Gowry), else the map the lot belongs to, on a boss
   marker there the note names, the dungeon's entrance, a landmark or the tile's middle.
-- **Markers** are rows added to `WorldMapPointParam` in memory at startup. The world map only draws
+- **Markers** are rows added to `WorldMapPointParam` in memory at startup (found through
+  fromsoftware-rs). The world map only draws
   a row whose **id encodes its map block** (`AABBnn` for dungeon map `mAA_BB`, `PPGGZZnn` for world
   tile `GG/ZZ`); the plugin picks a free `nn`. Visibility is switched at runtime through the row's
   event flag (always-on / always-off flags), following which notes you carry and what you own.
@@ -154,25 +160,29 @@ Run `Update.bat` again after code changes or a Convergence update (close the gam
 
 ### Releasing
 
-GitHub builds releases (`.github/workflows/release.yml`): bump `version` in `plugin/Cargo.toml`,
-commit, then push a matching tag:
+Bump `version` in `plugin/Cargo.toml` and commit.
 
-```
-git tag v1.0.1
-git push origin v1.0.1
-```
+- **Minor or major versions** (`1.2.0`, `2.0.0`) release themselves: once that commit is on `main`
+  and CI passes, `.github/workflows/cd.yml` tags it and publishes the release.
+- **Patch versions** (`1.1.1`) are released only when you push their tag, after CI passes:
 
-The workflow checks the tag matches the version, builds the plugin, packs the zip with
-`tools/package.ps1` and attaches it to a new release. Installing from the zip needs no Python, Rust
-or `convergence_path.txt`.
+  ```
+  git tag v1.1.1
+  git push origin v1.1.1
+  ```
+
+Either way `.github/workflows/release.yml` checks the tag matches the version, builds the plugin,
+packs the zip with `tools/package.ps1` and attaches it to a new release with notes generated from
+the commits. Installing from the zip needs no Python, Rust or `convergence_path.txt`.
 
 ## License and credits
 
 The code is [MIT](LICENSE). None of ELDEN RING's or The Convergence's art or text is in the
 releases, and in this repo only the banner (`docs/class_markers_banner.png`, their logos and
-in-game screenshots) shows any: the plugin reads it from the game while it runs. `plugin/src/generated.rs` holds only
-numbers derived from Convergence's data (ids, flags, positions) and the class names. Release zips
-list the Rust crates in the DLL in `THIRD-PARTY-NOTICES.md`.
+in-game screenshots) shows any: the plugin reads it from the game while it runs.
+`plugin/src/generated.rs` holds only numbers derived from Convergence's data (ids, flags,
+positions) and the class names. Release zips list the Rust crates in the DLL in
+`THIRD-PARTY-NOTICES.md`.
 
 - The technique for growing game tables and text in memory follows
   [Map For Goblins - DLL](https://github.com/VirusAlex/ERR-MapForGoblins-DLL) by VirusAlex (MIT).

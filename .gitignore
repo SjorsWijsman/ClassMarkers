@@ -12,7 +12,7 @@ __pycache__/
 # This machine's ConvergenceER location
 convergence_path.txt
 
-# The plugin's generated world map movie (me3 package), rebuilt at every start
+# Made by the plugin: its me3 package (world map movie, menu icon atlas) and the icon cache
 mod/
 
 # Release zips (tools/package.ps1)

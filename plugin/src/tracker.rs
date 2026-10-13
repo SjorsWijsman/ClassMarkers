@@ -5,7 +5,7 @@
 //! [icon] Nox Oracle   7 / 15 found                      (class colour)
 //! The Nox Oracle primarily uses ...
 //!
-//! Night spell runes   2 / 5                             (tan)
+//! Runes of Night   2 / 5                               (tan)
 //! Shimmering Rune of Night - Raya Lucaria Crystal Tunnel (name in class colour)
 //! Glowing Rune of Night - Mirage Rise                    (grey once found)
 //! ```
