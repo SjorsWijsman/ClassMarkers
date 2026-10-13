@@ -14,8 +14,8 @@
 use crate::generated::{NOTES, RUNE_ART};
 use crate::iconart::{map_note_icon, map_rune_icon, text_icon};
 use crate::iconsource::{atlas_icons, detail_images, oodle, DETAIL_IMAGES};
-use crate::noteicons::{LAYOUTS, TEXTURES};
 use crate::log;
+use crate::noteicons::{LAYOUTS, TEXTURES};
 use crate::pixels::{encode_png, Rgba};
 use std::collections::HashMap;
 use std::fs;
@@ -86,7 +86,14 @@ fn stamp_base(dll_dir: &Path, hi: &Path) -> String {
     if let Ok(dir) = fs::read_dir(dll_dir.join("icons").join("notes")) {
         let mut own: Vec<String> = dir
             .flatten()
-            .filter_map(|e| Some(format!("{}:{}:{:?}", e.file_name().to_string_lossy(), e.metadata().ok()?.len(), e.metadata().ok()?.modified().ok())))
+            .filter_map(|e| {
+                Some(format!(
+                    "{}:{}:{:?}",
+                    e.file_name().to_string_lossy(),
+                    e.metadata().ok()?.len(),
+                    e.metadata().ok()?.modified().ok()
+                ))
+            })
             .collect();
         own.sort();
         s += &format!("|own:{}", own.join(","));
@@ -132,7 +139,12 @@ fn make_notes(dll_dir: &Path, hi: &Path, cache: &Path) -> Result<usize, String> 
 }
 
 /// Every rune tier's map icon.
-fn make_runes(dll_dir: &Path, hi: &Path, cache: &Path, kraken: crate::formats::OodleDecompress) -> Result<usize, String> {
+fn make_runes(
+    dll_dir: &Path,
+    hi: &Path,
+    cache: &Path,
+    kraken: crate::formats::OodleDecompress,
+) -> Result<usize, String> {
     let ids: Vec<u16> = RUNE_ART.iter().map(|&(_, _, icon)| icon).collect();
     let art = detail_images(hi, &ids, kraken)?;
     let colours = crate::colors::class_colors(dll_dir);
@@ -154,8 +166,15 @@ mod tests {
     #[test]
     #[ignore = "needs real game files, see the CM_* variables above"]
     fn make_all() {
-        let (Ok(hi), Ok(out), Ok(dll)) = (std::env::var("CM_HI"), std::env::var("CM_OUT"), std::env::var("CM_OODLE")) else { return };
-        let module = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryA(std::ffi::CString::new(dll).unwrap().as_ptr() as *const u8) };
+        let (Ok(hi), Ok(out), Ok(dll)) = (std::env::var("CM_HI"), std::env::var("CM_OUT"), std::env::var("CM_OODLE"))
+        else {
+            return;
+        };
+        let module = unsafe {
+            windows_sys::Win32::System::LibraryLoader::LoadLibraryA(
+                std::ffi::CString::new(dll).unwrap().as_ptr() as *const u8
+            )
+        };
         assert!(!module.is_null(), "can't load Oodle");
         let (hi, out) = (std::path::Path::new(&hi), std::path::Path::new(&out));
         let cache = out.join("mod").join("icons");

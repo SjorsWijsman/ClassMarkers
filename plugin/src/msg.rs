@@ -14,9 +14,9 @@
 //! is changed in the highest layer that has it.
 
 use crate::generated::{CAPTION_SLOTS, MARKERS, NOTES, PLACE_NAME_SLOT};
-use crate::markers::Note;
 use crate::inject::alloc_like;
 use crate::log;
+use crate::markers::Note;
 use crate::mem::{rd, wr};
 use crate::noteicons::NAME_PREFIX;
 use crate::scan;
@@ -76,7 +76,11 @@ pub const FIRST_TEXT_ID: i32 = 1_850_000_000;
 /// Where an FMG offset points. The game fixes offsets up into absolute pointers when it loads a
 /// text file; ours (write_fmg) keep the string offsets relative to the file.
 unsafe fn fmg_at(fmg: *const u8, off: u64) -> *const u8 {
-    if off > 0x100_0000 { off as *const u8 } else { fmg.add(off as usize) }
+    if off > 0x100_0000 {
+        off as *const u8
+    } else {
+        fmg.add(off as usize)
+    }
 }
 
 /// Where the game keeps its MsgRepository pointer (null before the text is loaded and once the game
@@ -302,11 +306,8 @@ pub fn read_texts(slots: &[usize], ids: &HashSet<i32>) -> Result<HashMap<i32, St
 /// Add `labels` to PlaceName as ids FIRST_TEXT_ID, FIRST_TEXT_ID + 1, ...
 /// On success the ids can be used as marker text; `on_lost` runs if they are lost later.
 pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> Result<(), String> {
-    let ours: Vec<(i32, Vec<u16>)> = labels
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (FIRST_TEXT_ID + i as i32, s.encode_utf16().collect()))
-        .collect();
+    let ours: Vec<(i32, Vec<u16>)> =
+        labels.iter().enumerate().map(|(i, s)| (FIRST_TEXT_ID + i as i32, s.encode_utf16().collect())).collect();
     let repo = repository()?;
     let slot = loaded_slot(repo, PLACE_NAME_SLOT).ok_or("place-name text not loaded")?;
     // The place names our markers use must be there, or this slot holds some other text.
@@ -337,11 +338,8 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result
     crate::tracker::init(colours.clone());
     let mut done = 0;
     for (category, slots) in CAPTION_SLOTS {
-        let mut wanted: HashMap<i32, &[u32]> = captions
-            .iter()
-            .filter(|(c, _, _)| *c == category)
-            .map(|&(_, id, listed)| (id as i32, listed))
-            .collect();
+        let mut wanted: HashMap<i32, &[u32]> =
+            captions.iter().filter(|(c, _, _)| *c == category).map(|&(_, id, listed)| (id as i32, listed)).collect();
         if category == 1 {
             for t in crate::generated::NOTE_TEXTS {
                 wanted.entry(t.note as i32).or_insert(&[]);

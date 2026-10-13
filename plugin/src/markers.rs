@@ -195,11 +195,16 @@ impl GenMarker {
                 .iter()
                 .enumerate()
                 .map(|(k, c)| {
-                    let lead = if k == 0 { crate::msg::note_img(n, crate::msg::MAP_ICON_PX) } else { HINT_INDENT.to_string() };
+                    let lead =
+                        if k == 0 { crate::msg::note_img(n, crate::msg::MAP_ICON_PX) } else { HINT_INDENT.to_string() };
                     format!("{}<font color=\"{}\">{}</font>", lead, crate::tracker::HEADING, c)
                 })
                 .collect(),
-            None => chunks.iter().enumerate().map(|(k, c)| if k == 0 { format!("Note: {}", c) } else { c.clone() }).collect(),
+            None => chunks
+                .iter()
+                .enumerate()
+                .map(|(k, c)| if k == 0 { format!("Note: {}", c) } else { c.clone() })
+                .collect(),
         }
     }
 

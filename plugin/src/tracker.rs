@@ -15,9 +15,9 @@
 //! is rewritten in place there, so nothing is re-allocated while playing.
 
 use crate::generated::{NOTES, NOTE_TEXTS};
-use crate::notetext;
 use crate::markers::Item;
 use crate::msg::{fmg_string, in_colour, note_img, ICON_PX};
+use crate::notetext;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -114,7 +114,12 @@ fn build(t: &NoteText, colours: &HashMap<&'static str, String>, found: &dyn Fn(&
             out += &if found(e) {
                 grey(&format!("{} - {}", name(s, e), notetext::location(s.source, e.line)))
             } else {
-                format!("<font color=\"{}\">{}</font> - {}", name_colour, name(s, e), notetext::location(s.source, e.line))
+                format!(
+                    "<font color=\"{}\">{}</font> - {}",
+                    name_colour,
+                    name(s, e),
+                    notetext::location(s.source, e.line)
+                )
             };
         }
     }
@@ -199,10 +204,15 @@ mod tests {
         let mut all = String::new();
         for t in NOTE_TEXTS {
             let name = NOTES.iter().find(|n| n.goods_id == t.note).map(|n| format!("{} ({})", n.class, n.which));
-            all += &format!("===== {} {}
+            all += &format!(
+                "===== {} {}
 {}
 
-", t.note, name.unwrap_or_default(), super::build(t, &colours, &|_| false));
+",
+                t.note,
+                name.unwrap_or_default(),
+                super::build(t, &colours, &|_| false)
+            );
         }
         std::fs::write(out, all).unwrap();
     }

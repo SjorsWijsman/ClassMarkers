@@ -74,7 +74,9 @@ pub fn find_unique(what: &str, pattern: &str) -> Result<*const u8, String> {
     match find_all(pattern).as_slice() {
         [hit] => Ok(*hit),
         [] => Err(format!("the {} pattern was not found (unsupported game version?)", what)),
-        hits => Err(format!("the {} pattern matched {} places, expected 1 (unsupported game version?)", what, hits.len())),
+        hits => {
+            Err(format!("the {} pattern matched {} places, expected 1 (unsupported game version?)", what, hits.len()))
+        }
     }
 }
 
@@ -91,7 +93,10 @@ pub fn global_of(what: &str, hits: &[*const u8], disp_offset: usize, next_offset
     match targets.len() {
         1 => Ok(*targets.first().unwrap() as *const u8),
         0 => Err(format!("the {} pattern was not found (unsupported game version?)", what)),
-        n => Err(format!("the {} pattern points at {} different places, expected 1 (unsupported game version?)", what, n)),
+        n => Err(format!(
+            "the {} pattern points at {} different places, expected 1 (unsupported game version?)",
+            what, n
+        )),
     }
 }
 

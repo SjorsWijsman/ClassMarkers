@@ -8,11 +8,11 @@
 use crate::log;
 use crate::markers::{Row, ROW_SIZE};
 use crate::mem::{rd, wr};
-use std::collections::HashSet;
 use crate::scan;
 use eldenring::cs::{SoloParam, SoloParamRepository, WorldMapPointParam};
 use eldenring::fd4::FD4ParamResCap;
 use fromsoftware_shared::FromStatic;
+use std::collections::HashSet;
 use std::ffi::c_void;
 use std::time::Duration;
 

@@ -166,8 +166,29 @@ fn read_tags(b: &[u8], mut pos: usize, end: usize) -> Result<Vec<Tag>, String> {
 fn defines_character(code: u16) -> bool {
     matches!(
         code,
-        2 | 6 | 10 | 11 | 20 | 21 | 22 | 32 | 33 | 34 | 35 | 36 | 37 | 39 | 46 | 48 | 60 | 75 | 83 | 84 | 87
-            | 90 | 91 | 1009
+        2 | 6
+            | 10
+            | 11
+            | 20
+            | 21
+            | 22
+            | 32
+            | 33
+            | 34
+            | 35
+            | 36
+            | 37
+            | 39
+            | 46
+            | 48
+            | 60
+            | 75
+            | 83
+            | 84
+            | 87
+            | 90
+            | 91
+            | 1009
     )
 }
 
@@ -243,12 +264,8 @@ fn build(src: &[u8], icons: &[Vec<u8>]) -> Result<(Vec<u8>, u16), String> {
     let tags = read_tags(src, first_tag, src.len())?;
 
     // New character ids above every id the movie defines.
-    let max_id = tags
-        .iter()
-        .filter(|t| defines_character(t.code) && t.len >= 2)
-        .map(|t| u16_at(src, t.body))
-        .max()
-        .unwrap_or(0);
+    let max_id =
+        tags.iter().filter(|t| defines_character(t.code) && t.len >= 2).map(|t| u16_at(src, t.body)).max().unwrap_or(0);
     let first_char = max_id as u32 + 1;
     if first_char + icons.len() as u32 > u16::MAX as u32 {
         return Err("no free character ids".into());

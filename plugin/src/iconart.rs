@@ -166,7 +166,8 @@ fn map_icon(img: &Rgba, art: Box, (cx, cy): (f32, f32), glow: [u8; 3], solid: u8
         }
     }
     let rim: Vec<f32> = gaussian(&rim, full, OUTLINE_SOFT).iter().map(|v| (v * 1.3).min(1.0)).collect();
-    let halo: Vec<f32> = gaussian(&rim, full, full as f32 * GLOW_RADIUS).iter().map(|v| (v * GLOW_GAIN).min(1.0)).collect();
+    let halo: Vec<f32> =
+        gaussian(&rim, full, full as f32 * GLOW_RADIUS).iter().map(|v| (v * GLOW_GAIN).min(1.0)).collect();
 
     // Glow, then outline, then the art.
     let mut out = vec![0u8; full * full * 4];

@@ -23,7 +23,20 @@ pub fn put_u64(b: &mut [u8], at: usize, v: u64) {
 
 /// The game's Oodle decompressor, OodleLZ_Decompress (see iconsource.rs oodle).
 pub type OodleDecompress = unsafe extern "C" fn(
-    *const u8, i64, *mut u8, i64, i32, i32, i32, *mut u8, i64, usize, usize, usize, i64, i32,
+    *const u8,
+    i64,
+    *mut u8,
+    i64,
+    i32,
+    i32,
+    i32,
+    *mut u8,
+    i64,
+    usize,
+    usize,
+    usize,
+    i64,
+    i32,
 ) -> i64;
 
 /// A DCX file's compression ("DFLT", "KRAK", ...), uncompressed size and compressed data.
@@ -55,7 +68,22 @@ pub fn undcx_any(file: &[u8], kraken: OodleDecompress) -> Result<Vec<u8>, String
     }
     let mut out = vec![0u8; size];
     let n = unsafe {
-        kraken(body.as_ptr(), body.len() as i64, out.as_mut_ptr(), size as i64, 0, 0, 0, std::ptr::null_mut(), 0, 0, 0, 0, 0, 3)
+        kraken(
+            body.as_ptr(),
+            body.len() as i64,
+            out.as_mut_ptr(),
+            size as i64,
+            0,
+            0,
+            0,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            3,
+        )
     };
     if n as usize != size {
         return Err("Oodle could not unpack it".into());
@@ -116,7 +144,8 @@ fn binder(b: &[u8], magic: &[u8; 4]) -> Result<Vec<BndFile>, String> {
     for i in 0..count {
         let e = 0x40 + i * hsize;
         let size = u64_at(b, e + 8) as usize;
-        let off = if layout.long { u64_at(b, e + layout.data_at) as usize } else { u32_at(b, e + layout.data_at) as usize };
+        let off =
+            if layout.long { u64_at(b, e + layout.data_at) as usize } else { u32_at(b, e + layout.data_at) as usize };
         if magic == b"BND4" && off + size > b.len() {
             return Err("binder entry runs past the end".into());
         }
@@ -175,7 +204,8 @@ pub fn tpf(b: &[u8]) -> Result<Vec<Texture>, String> {
         let e = 0x10 + i * 0x14;
         let (off, size, no) = (u32_at(b, e) as usize, u32_at(b, e + 4) as usize, u32_at(b, e + 0x0C) as usize);
         let name = if utf16 {
-            let units: Vec<u16> = b[no..].chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|&c| c != 0).collect();
+            let units: Vec<u16> =
+                b[no..].chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|&c| c != 0).collect();
             String::from_utf16_lossy(&units)
         } else {
             b[no..].iter().take_while(|&&c| c != 0).map(|&c| c as char).collect()

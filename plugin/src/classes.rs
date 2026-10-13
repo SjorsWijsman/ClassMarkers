@@ -92,11 +92,7 @@ fn weapon_ids(id: u32) -> [u32; 2] {
 
 /// The class notes whose pickup flags are on (fallback).
 fn notes_from_flags(flags: &Flags) -> BTreeSet<u32> {
-    NOTES
-        .iter()
-        .filter(|n| n.flags.iter().any(|&f| flags.get(f) == Some(true)))
-        .map(|n| n.goods_id)
-        .collect()
+    NOTES.iter().filter(|n| n.flags.iter().any(|&f| flags.get(f) == Some(true))).map(|n| n.goods_id).collect()
 }
 
 fn obtained(item: &Item, owned: Option<&Owned>, flags: Option<&Flags>) -> bool {
@@ -105,12 +101,13 @@ fn obtained(item: &Item, owned: Option<&Owned>, flags: Option<&Flags>) -> bool {
 }
 
 fn describe(notes: &BTreeSet<u32>) -> String {
-    let names: Vec<String> = NOTES
-        .iter()
-        .filter(|n| notes.contains(&n.goods_id))
-        .map(|n| format!("{} ({})", n.class, n.which))
-        .collect();
-    if names.is_empty() { "none".into() } else { names.join(", ") }
+    let names: Vec<String> =
+        NOTES.iter().filter(|n| notes.contains(&n.goods_id)).map(|n| format!("{} ({})", n.class, n.which)).collect();
+    if names.is_empty() {
+        "none".into()
+    } else {
+        names.join(", ")
+    }
 }
 
 pub fn watch(rows: Vec<Watched>) {
@@ -147,8 +144,7 @@ pub fn watch(rows: Vec<Watched>) {
             let shown: Vec<bool> = rows
                 .iter()
                 .map(|r| {
-                    notes.contains(&r.note)
-                        && !r.items.iter().all(|i| obtained(i, owned.as_ref(), flags.as_ref()))
+                    notes.contains(&r.note) && !r.items.iter().all(|i| obtained(i, owned.as_ref(), flags.as_ref()))
                 })
                 .collect();
             if last.as_ref().is_some_and(|(n, s)| *n == notes && *s == shown) {

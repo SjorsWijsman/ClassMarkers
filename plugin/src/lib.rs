@@ -11,6 +11,7 @@ mod classes;
 mod colors;
 mod flags;
 mod formats;
+#[rustfmt::skip]
 mod generated;
 mod gfx;
 mod iconart;

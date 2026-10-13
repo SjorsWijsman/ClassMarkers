@@ -39,7 +39,8 @@ fn from_files(dll_dir: &Path) -> HashMap<&'static str, String> {
             if out.contains_key(note.class) {
                 continue;
             }
-            let path = crate::iconcache::icon_path(dll_dir, "notes", &crate::iconcache::file_name(note.class, note.which));
+            let path =
+                crate::iconcache::icon_path(dll_dir, "notes", &crate::iconcache::file_name(note.class, note.which));
             let Ok(bytes) = std::fs::read(path) else { continue };
             if let Some(c) = decode_png(&bytes).ok().and_then(|img| icon_colour(&img.data)) {
                 out.insert(note.class, c);
@@ -50,7 +51,8 @@ fn from_files(dll_dir: &Path) -> HashMap<&'static str, String> {
         for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
             let Some((class, colour)) = line.split_once('=') else { continue };
             let (class, colour) = (class.trim(), colour.trim().to_uppercase());
-            let valid = colour.len() == 7 && colour.starts_with('#') && colour[1..].chars().all(|c| c.is_ascii_hexdigit());
+            let valid =
+                colour.len() == 7 && colour.starts_with('#') && colour[1..].chars().all(|c| c.is_ascii_hexdigit());
             match NOTES.iter().find(|n| n.class.eq_ignore_ascii_case(class)) {
                 Some(n) if valid => {
                     out.insert(n.class, colour);

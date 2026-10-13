@@ -85,11 +85,16 @@ fn update(dll_dir: &Path, ours: &Path, theirs: &Path) -> Result<Available, Strin
 
     let started = Instant::now();
     let (textures, layouts) = if icons.is_empty() {
-        (fs::read(theirs.join(TEXTURES)).map_err(|e| e.to_string())?, fs::read(theirs.join(LAYOUTS)).map_err(|e| e.to_string())?)
+        (
+            fs::read(theirs.join(TEXTURES)).map_err(|e| e.to_string())?,
+            fs::read(theirs.join(LAYOUTS)).map_err(|e| e.to_string())?,
+        )
     } else {
-        build(&fs::read(theirs.join(TEXTURES)).map_err(|e| e.to_string())?,
-              &fs::read(theirs.join(LAYOUTS)).map_err(|e| e.to_string())?,
-              &icons)?
+        build(
+            &fs::read(theirs.join(TEXTURES)).map_err(|e| e.to_string())?,
+            &fs::read(theirs.join(LAYOUTS)).map_err(|e| e.to_string())?,
+            &icons,
+        )?
     };
     for (f, data) in [(TEXTURES, &textures), (LAYOUTS, &layouts)] {
         fs::write(ours.join(f), data).map_err(|e| format!("can't write our {} ({})", f, e))?;
@@ -158,7 +163,8 @@ fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Resu
         for row in 0..img.height {
             let src = (row * img.width * 4) as usize;
             let dst = (((py + row) * width + px) * 4) as usize;
-            surface[dst..dst + (img.width * 4) as usize].copy_from_slice(&img.data[src..src + (img.width * 4) as usize]);
+            surface[dst..dst + (img.width * 4) as usize]
+                .copy_from_slice(&img.data[src..src + (img.width * 4) as usize]);
         }
     }
     let blocks = intel_tex_2::bc7::compress_blocks(
@@ -196,7 +202,12 @@ fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Resu
     for (note, px, py, img) in &placed {
         new_text += &format!(
             "  <SubTexture name=\"{}{}.png\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" half=\"0\" />\r\n",
-            NAME_PREFIX, note, px, height + py, img.width, img.height
+            NAME_PREFIX,
+            note,
+            px,
+            height + py,
+            img.width,
+            img.height
         );
     }
     new_text += &text[close..];
@@ -222,7 +233,9 @@ mod tests {
         let src = std::path::Path::new(&src);
         let mut list = Vec::new();
         for n in crate::generated::NOTES {
-            if let Ok(b) = std::fs::read(std::path::Path::new(&icons).join(crate::iconcache::file_name(n.class, n.which))) {
+            if let Ok(b) =
+                std::fs::read(std::path::Path::new(&icons).join(crate::iconcache::file_name(n.class, n.which)))
+            {
                 list.push((n.goods_id, crate::pixels::decode_png(&b).unwrap()));
             }
         }
