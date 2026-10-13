@@ -54,8 +54,10 @@ fn wait_for_param_list() -> Result<*const u8, String> {
     let mut list_slot: Option<*const *const u8> = None;
     for second in 0..300 {
         if list_slot.is_none() {
-            if let Some(&hit) = scan::find_all(PARAM_LIST_AOB).first() {
-                list_slot = Some(unsafe { scan::rip_relative(hit, 3, 7) } as *const *const u8);
+            // Keep looking while it isn't there yet; matches that disagree are an error right away.
+            let hits = scan::find_all(PARAM_LIST_AOB);
+            if !hits.is_empty() {
+                list_slot = Some(scan::global_of("param list", &hits, 3, 7)? as *const *const u8);
                 log!("Found the param list pointer");
             }
         }
@@ -96,12 +98,9 @@ unsafe fn find_param_header(list: *const u8, name: &str) -> Option<*mut u8> {
 /// Allocate `size` bytes (16-aligned, zeroed) from the engine allocator that owns `neighbor`,
 /// so the engine can free our buffer exactly like the one it replaces.
 pub unsafe fn alloc_like(neighbor: *const u8, size: usize) -> Result<*mut u8, String> {
-    let hits = scan::find_all(DL_FIND_OWNER_AOB);
-    if hits.len() != 1 {
-        return Err(format!("allocator lookup pattern matched {} times, expected 1", hits.len()));
-    }
+    let hit = scan::find_unique("allocator lookup", DL_FIND_OWNER_AOB)?;
     let find_owner: extern "C" fn(*const c_void) -> *mut c_void =
-        std::mem::transmute(scan::rip_relative(hits[0], 0x1A, 0x1E));
+        std::mem::transmute(scan::rip_relative(hit, 0x1A, 0x1E));
     let allocator = find_owner(neighbor as *const c_void);
     if allocator.is_null() {
         return Err("no engine allocator owns the original marker table".into());

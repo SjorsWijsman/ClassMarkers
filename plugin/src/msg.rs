@@ -90,8 +90,7 @@ unsafe fn wr<T>(p: *mut u8, v: T) {
 
 /// The MsgRepository's slot array and its length, once the game has loaded its text.
 fn repository() -> Result<(*mut *mut u8, usize), String> {
-    let hit = *scan::find_all(MSG_REPOSITORY_AOB).first().ok_or("text repository pattern not found")?;
-    let repo_slot = unsafe { scan::rip_relative(hit, 3, 7) } as *const *const u8;
+    let repo_slot = scan::find_global("text repository", MSG_REPOSITORY_AOB, 3, 7)? as *const *const u8;
     for _ in 0..600 {
         unsafe {
             let repo = *repo_slot;

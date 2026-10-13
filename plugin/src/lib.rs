@@ -54,6 +54,7 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
 #[no_mangle]
 pub extern "C" fn modengine_ext_init(_connector: *const c_void, _extension: *mut *mut c_void) -> bool {
     prepare_files("me3's init call");
+    log!("Our files are ready (me3's init call waited for them)");
     true
 }
 

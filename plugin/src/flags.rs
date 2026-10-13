@@ -15,15 +15,10 @@ pub struct Flags {
 unsafe impl Send for Flags {}
 
 impl Flags {
-    pub fn resolve() -> Option<Flags> {
-        let f = *scan::find_all(IS_EVENT_FLAG_AOB).first()?;
-        let m = *scan::find_all(EVENT_FLAG_MAN_AOB).first()?;
-        unsafe {
-            Some(Flags {
-                is_event_flag: std::mem::transmute(f),
-                man_slot: scan::rip_relative(m, 3, 7) as *const *const u8,
-            })
-        }
+    pub fn resolve() -> Result<Flags, String> {
+        let f = scan::find_unique("event flag lookup", IS_EVENT_FLAG_AOB)?;
+        let man_slot = scan::find_global("event flag manager", EVENT_FLAG_MAN_AOB, 3, 7)? as *const *const u8;
+        Ok(Flags { is_event_flag: unsafe { std::mem::transmute::<*const u8, _>(f) }, man_slot })
     }
 
     /// None while the flag manager doesn't exist yet (no character loaded).
