@@ -37,7 +37,6 @@ use windows_sys::Win32::Foundation::{HMODULE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         // Only the cheap bits here: DllMain runs under the loader lock. The file work happens in

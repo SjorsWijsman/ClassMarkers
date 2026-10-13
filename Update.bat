@@ -1,7 +1,7 @@
 @echo off
 :: Brings Class Markers up to date after a Convergence update: re-reads Convergence's files,
-:: refreshes the icons you haven't edited, rebuilds the plugin and puts it back in the launch
-:: profiles. Needs Python and Rust (see README.md).
+:: rebuilds the plugin and puts it back in the launch profiles (the plugin remakes its icons in
+:: game). Needs Python and Rust (see README.md).
 echo Updating Class Markers for the installed Convergence...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\update.ps1"
 if errorlevel 1 (

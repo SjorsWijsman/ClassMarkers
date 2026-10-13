@@ -115,7 +115,7 @@ fn describe(notes: &BTreeSet<u32>) -> String {
 
 pub fn watch(rows: Vec<Watched>) {
     let flags = Flags::resolve()
-        .map_err(|e| log!("Event flags can't be read ({}); only items you carry count as obtained", e))
+        .map_err(|e| log!("Event flags can't be read ({}); only items you own count as obtained", e))
         .ok();
     let task = match CSTaskImp::wait_for_instance(Duration::from_secs(300)) {
         Ok(t) => t,

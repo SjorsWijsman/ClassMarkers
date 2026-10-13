@@ -96,7 +96,7 @@ pub fn prepare(dll_dir: &Path) -> MapIcons {
         }
     }
 
-    let built = if icons.is_empty() { Err("no icon files in icons/map".to_string()) } else { build(&src, &icons) };
+    let built = if icons.is_empty() { Err("no map icon files".to_string()) } else { build(&src, &icons) };
     let (out, first) = match built {
         Ok(r) => r,
         Err(e) => {
@@ -242,7 +242,7 @@ fn build(src: &[u8], icons: &[Vec<u8>]) -> Result<(Vec<u8>, u16), String> {
         return Err("not an uncompressed GFX movie".into());
     }
     let rect_bits = (src[8] >> 3) as usize;
-    let first_tag = 8 + (5 + 4 * rect_bits + 7) / 8 + 4;
+    let first_tag = 8 + (5 + 4 * rect_bits).div_ceil(8) + 4;
     let tags = read_tags(src, first_tag, src.len())?;
 
     // New character ids above every id the movie defines.

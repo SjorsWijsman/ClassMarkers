@@ -21,7 +21,7 @@ fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
 /// wide), decoded to RGBA.
 fn bc7_region(blocks: &[u8], width: usize, x: usize, y: usize, w: usize, h: usize) -> Result<Rgba, String> {
     let bw = width / 4;
-    let (bx0, by0, bx1, by1) = (x / 4, y / 4, (x + w + 3) / 4, (y + h + 3) / 4);
+    let (bx0, by0, bx1, by1) = (x / 4, y / 4, (x + w).div_ceil(4), (y + h).div_ceil(4));
     let pw = (bx1 - bx0) * 4;
     let mut px = vec![0u8; pw * (by1 - by0) * 4 * 4];
     for by in by0..by1 {
@@ -129,9 +129,12 @@ fn undcx_any(file: &[u8], kraken: OodleDecompress) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// The header of the binder holding the items' detail images (its data is the .tpfbdt next to it).
+pub const DETAIL_IMAGES: &str = "00_solo.tpfbhd";
+
 /// The detail images of the items whose icon ids are `wanted`, from menu/hi/00_solo.
 pub fn detail_images(hi: &Path, wanted: &[u16], kraken: OodleDecompress) -> Result<HashMap<u16, Rgba>, String> {
-    let bhd = fs::read(hi.join("00_solo.tpfbhd")).map_err(|e| e.to_string())?;
+    let bhd = fs::read(hi.join(DETAIL_IMAGES)).map_err(|e| e.to_string())?;
     if bhd.len() < 0x40 || &bhd[..4] != b"BHF4" {
         return Err("00_solo.tpfbhd is not a BHF4 header".into());
     }

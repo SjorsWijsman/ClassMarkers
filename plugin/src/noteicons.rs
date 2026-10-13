@@ -233,7 +233,7 @@ fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Resu
     }
 
     // Our icons in rows below the existing image, each on a 4 px grid with a gap around it.
-    let round4 = |v: u32| (v + 3) / 4 * 4;
+    let round4 = |v: u32| v.div_ceil(4) * 4;
     let mut placed = Vec::new(); // (note, x, y in the new texture, w, h)
     let (mut x, mut y, mut row_h) = (GAP, GAP, 0);
     for (note, img) in icons {

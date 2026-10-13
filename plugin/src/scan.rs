@@ -60,7 +60,7 @@ fn scan(pattern: &str) -> Vec<*const u8> {
     let last = text.len().saturating_sub(pat.len());
     let mut i = 0;
     while i <= last {
-        if text[i] == first && pat.iter().enumerate().all(|(j, p)| p.map_or(true, |b| text[i + j] == b)) {
+        if text[i] == first && pat.iter().enumerate().all(|(j, p)| p.is_none_or(|b| text[i + j] == b)) {
             out.push(unsafe { text.as_ptr().add(i) });
         }
         i += 1;

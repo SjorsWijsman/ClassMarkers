@@ -101,7 +101,7 @@ fn build(t: &NoteText, colours: &HashMap<&'static str, String>, found: &dyn Fn(&
     for s in t.sections {
         let got = s.entries.iter().filter(|e| found(e)).count();
         let heading = match s.kind {
-            1 => s.entries.first().map(|e| notetext::rune_heading(&notetext::name(s.source, e.line, e.name_item))).unwrap_or_default(),
+            1 => s.entries.first().map(|e| notetext::rune_heading(&name(s, e))).unwrap_or_default(),
             2 => "Weapons".to_string(),
             _ => "Armor".to_string(),
         };
@@ -159,7 +159,7 @@ pub fn register(slot: *mut *mut u8, ours: Arc<AtomicUsize>, notes: Vec<u32>) {
 pub fn update(obtained: &dyn Fn(&Item) -> bool) {
     let Some(state) = STATE.get() else { return };
     let mut state = state.lock().unwrap();
-    let found = |e: &NoteEntry| !e.items.is_empty() && e.items.iter().all(|i| obtained(i));
+    let found = |e: &NoteEntry| !e.items.is_empty() && e.items.iter().all(obtained);
     for t in NOTE_TEXTS {
         let text: Vec<u16> = build(t, &state.colours, &found).encode_utf16().collect();
         let Some((current, room)) = state.texts.get_mut(&t.note) else { continue };

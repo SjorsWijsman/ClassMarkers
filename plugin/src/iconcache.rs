@@ -13,7 +13,8 @@
 
 use crate::generated::{NOTES, RUNE_ART};
 use crate::iconart::{map_note_icon, map_rune_icon, text_icon};
-use crate::iconsource::{atlas_icons, detail_images, oodle};
+use crate::iconsource::{atlas_icons, detail_images, oodle, DETAIL_IMAGES};
+use crate::noteicons::{LAYOUTS, TEXTURES};
 use crate::log;
 use crate::pixels::{encode_png, Rgba};
 use std::fs;
@@ -75,7 +76,7 @@ fn read(p: &Path) -> String {
 /// override icons (their colours are the glows' colours).
 fn stamp_base(dll_dir: &Path, hi: &Path) -> String {
     let mut s = format!("v{}", env!("CARGO_PKG_VERSION"));
-    for f in ["01_common.tpf.dcx", "01_common.sblytbnd.dcx", "00_solo.tpfbhd"] {
+    for f in [TEXTURES, LAYOUTS, DETAIL_IMAGES] {
         if let Ok(m) = fs::metadata(hi.join(f)) {
             s += &format!("|{}:{}:{:?}", f, m.len(), m.modified().ok());
         }

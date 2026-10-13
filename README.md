@@ -91,13 +91,13 @@ Everything below is about building the mod from source; players don't need it.
 
 ### Building from source
 
-Needs Windows, [Rust](https://rustup.rs), Python 3.10+ with `cryptography`, and The Convergence
+Needs Windows, [Rust](https://rustup.rs), Python 3.10+ and The Convergence
 installed.
 
 1. Clone the repo anywhere.
 2. Create `convergence_path.txt` in the repo root holding your `ConvergenceER` folder, e.g.
    `D:\Games\Elden Ring The Convergence\ConvergenceER`.
-3. `pip install --target tools/pylib zstandard`
+3. `pip install -r tools/requirements.txt`
 4. Run `Update.bat`. It reads Convergence's files (`tools/generate.py`), builds the plugin, copies
    `ClassMarkers.dll` to the repo root and installs it into Convergence's launch profiles (linking
    `ConvergenceER\ClassMarkers` to the repo).

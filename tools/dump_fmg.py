@@ -1,4 +1,4 @@
-import ctypes, struct, sys, os, json
+import ctypes, struct, os, json
 
 import common
 

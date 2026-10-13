@@ -3,7 +3,6 @@ import json, os, re
 
 import common
 
-import json,re
 strip=lambda s: re.sub(r'</?font[^>]*>','',s or '')
 def items(lines):
     groups=[[]]
