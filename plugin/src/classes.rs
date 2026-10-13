@@ -127,7 +127,7 @@ pub fn watch(rows: Vec<Watched>) {
     let handle = task.run_recurring(
         move |_: &FD4TaskData| {
             frame = frame.wrapping_add(1);
-            if frame % CHECK_EVERY_FRAMES != 0 {
+            if !frame.is_multiple_of(CHECK_EVERY_FRAMES) {
                 return;
             }
             let owned = Owned::read();
