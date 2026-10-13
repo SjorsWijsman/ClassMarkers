@@ -40,10 +40,30 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 #[allow(non_snake_case)]
 pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        // Only the cheap bits here: DllMain runs under the loader lock. The file work happens in
+        // modengine_ext_init, or on our thread if nothing calls that.
         log::init(module);
-        // Our icons have to be in place before the game loads its menus, so these jobs (file reads
-        // and writes; seconds only when the note icons changed) run right here; everything else
-        // goes to our own thread.
+        std::thread::spawn(run);
+    }
+    TRUE
+}
+
+/// Mod Engine 2's init hook, which me3 calls right after loading us, on its loading thread and
+/// outside the loader lock, before the game loads any menu. We use it to make our files in time;
+/// no extension is handed back.
+#[no_mangle]
+pub extern "C" fn modengine_ext_init(_connector: *const c_void, _extension: *mut *mut c_void) -> bool {
+    prepare_files("me3's init call");
+    true
+}
+
+/// Our icons have to be in place before the game loads its menus (file reads and writes; seconds
+/// only when the note icons changed). Runs once: whichever of modengine_ext_init and our thread
+/// comes first does it, and the other waits for it.
+fn prepare_files(caller: &str) {
+    static PREPARED: std::sync::Once = std::sync::Once::new();
+    PREPARED.call_once(|| {
+        log!("Preparing our files (from {})", caller);
         if let Some(d) = log::dll_dir() {
             iconcache::prepare(d); // our icons, made from Convergence's art (cached)
         }
@@ -51,13 +71,12 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
         let _ = ICONS.set(icons);
         let notes = log::dll_dir().map(|d| noteicons::prepare(d)).unwrap_or_default();
         let _ = NOTE_ICONS.set(notes);
-        std::thread::spawn(run);
-    }
-    TRUE
+    });
 }
 
 fn run() {
     log!("Class Markers {} loaded", env!("CARGO_PKG_VERSION"));
+    prepare_files("our thread");
     let markers = generated::MARKERS;
     // Convergence's words (note entries, intros, item names), before we change any text.
     if let Err(e) = notetext::load() {
