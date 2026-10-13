@@ -1,0 +1,45 @@
+# Checks every push and pull request: the plugin is formatted, lint-free and its tests pass, and
+# the generator's rule tests pass. Neither needs a copy of The Convergence.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  plugin:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: plugin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: plugin
+
+      - name: Formatting
+        run: cargo fmt --check
+
+      - name: Lints
+        run: cargo clippy --release -- -D warnings
+
+      - name: Tests
+        run: cargo test --release
+
+  generator:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Tests
+        run: python -m unittest discover -s tools/tests -v
