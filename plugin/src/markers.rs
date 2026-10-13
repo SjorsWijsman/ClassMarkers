@@ -11,6 +11,10 @@ pub const ALWAYS_ON_FLAG: u32 = 6001;
 pub const ALWAYS_OFF_FLAG: u32 = 6000;
 /// Offset of eventFlagId in a WORLD_MAP_POINT_PARAM_ST row.
 pub const EVENT_FLAG_OFFSET: usize = 0x04;
+/// A row's text lines: textIdN at TEXT_ID_OFFSET + TEXT_LINE_STRIDE * N (textTypeN at 0x90 + N).
+const TEXT_ID_OFFSET: usize = 0x30;
+const TEXT_LINE_STRIDE: usize = 12;
+const TEXT_LINES: usize = 8;
 /// Stock map icon for a marker whose note has no icon of ours (gfx.rs): 88, the round seal.
 pub const STOCK_ICON: u16 = 88;
 /// Longest hint line: the map cuts a marker line off past about 52 characters ("Found after
@@ -121,8 +125,8 @@ impl Row {
         put(&mut r, 0x24, &self.x.to_le_bytes());
         put(&mut r, 0x28, &self.y.to_le_bytes());
         put(&mut r, 0x2C, &self.z.to_le_bytes());
-        for k in 0..8 {
-            let at = 0x30 + 12 * k;
+        for k in 0..TEXT_LINES {
+            let at = TEXT_ID_OFFSET + TEXT_LINE_STRIDE * k;
             match self.lines.get(k) {
                 Some(l) => {
                     put(&mut r, at, &l.text_id.to_le_bytes()); // textIdN
@@ -136,6 +140,16 @@ impl Row {
         }
         r[0xB5] = 1; // selectMinZoomStep
         r
+    }
+}
+
+/// Blank the text lines of the live row at `row` whose text id is `first_id` or above.
+pub unsafe fn clear_texts_from(row: usize, first_id: i32) {
+    for k in 0..TEXT_LINES {
+        let at = (row + TEXT_ID_OFFSET + TEXT_LINE_STRIDE * k) as *mut u8;
+        if crate::mem::rd::<i32>(at) >= first_id {
+            crate::mem::wr(at, -1i32);
+        }
     }
 }
 
@@ -201,7 +215,7 @@ impl GenMarker {
     pub fn row(&self, texts: Option<&[i32]>, icons: &MapIcons) -> Row {
         let line = |text_id| Line { text_id, text_type: 0 };
         let lines = match texts {
-            Some(ids) => ids.iter().take(8).map(|&id| line(id)).collect(),
+            Some(ids) => ids.iter().take(TEXT_LINES).map(|&id| line(id)).collect(),
             None => vec![line(self.text_id)],
         };
         Row {

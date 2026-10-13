@@ -14,6 +14,7 @@
 //! remembers what the copies were built from). When anything goes wrong the copies are made
 //! identical to Convergence's files and every note keeps its own icon.
 
+use crate::formats::{bc7_dds, bnd4, put_u32, redcx, set_bnd4_data, tpf, undcx, Texture, DDS_HEADER};
 use crate::generated::NOTES;
 use crate::log;
 use crate::pixels::{decode_png, Rgba};
@@ -102,100 +103,6 @@ fn fnv(b: &[u8]) -> u64 {
     b.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u64).wrapping_mul(0x100_0000_01b3))
 }
 
-pub(crate) fn u32_at(b: &[u8], at: usize) -> u32 {
-    u32::from_le_bytes(b[at..at + 4].try_into().unwrap())
-}
-fn put_u32(b: &mut [u8], at: usize, v: u32) {
-    b[at..at + 4].copy_from_slice(&v.to_le_bytes());
-}
-fn put_u64(b: &mut [u8], at: usize, v: u64) {
-    b[at..at + 8].copy_from_slice(&v.to_le_bytes());
-}
-
-/// The contents of a zlib (DFLT) DCX file.
-pub(crate) fn undcx(file: &[u8]) -> Result<Vec<u8>, String> {
-    if file.len() < 0x4C || &file[..4] != b"DCX\0" || &file[0x28..0x2C] != b"DFLT" {
-        return Err("not a zlib DCX file".into());
-    }
-    let csize = u32::from_be_bytes(file[0x20..0x24].try_into().unwrap()) as usize;
-    let body = file.get(0x4C..0x4C + csize).ok_or("DCX file is truncated")?;
-    miniz_oxide::inflate::decompress_to_vec_zlib(body).map_err(|e| format!("can't unpack ({:?})", e))
-}
-
-/// `data` packed like `template` (same DCX header, new sizes).
-fn redcx(template: &[u8], data: &[u8], level: u8) -> Vec<u8> {
-    let comp = miniz_oxide::deflate::compress_to_vec_zlib(data, level);
-    let mut out = template[..0x4C].to_vec();
-    out[0x1C..0x20].copy_from_slice(&(data.len() as u32).to_be_bytes());
-    out[0x20..0x24].copy_from_slice(&(comp.len() as u32).to_be_bytes());
-    out.extend(comp);
-    out
-}
-
-/// One file in a BND4 binder: where its header entry is and where its data is.
-pub(crate) struct BndFile {
-    entry: usize,
-    pub(crate) data: std::ops::Range<usize>,
-}
-
-/// Layout of a BND4 header entry for its format flags: (offset of the uncompressed size if any,
-/// offset of the data offset, whether that is 64-bit).
-fn bnd4_fields(fmt: u8) -> (Option<usize>, usize, bool) {
-    let has_usize = fmt & 0x20 != 0;
-    (has_usize.then_some(16), if has_usize { 24 } else { 16 }, fmt & 0x10 != 0)
-}
-
-pub(crate) fn bnd4(b: &[u8]) -> Result<Vec<BndFile>, String> {
-    if b.len() < 0x40 || &b[..4] != b"BND4" {
-        return Err("not a BND4 binder".into());
-    }
-    let count = u32_at(b, 0x0C) as usize;
-    let hsize = u32_at(b, 0x20) as usize;
-    let (_, off_at, long) = bnd4_fields(b[0x31].reverse_bits());
-    let mut out = Vec::new();
-    for i in 0..count {
-        let e = 0x40 + i * hsize;
-        let size = u64::from_le_bytes(b[e + 8..e + 16].try_into().unwrap()) as usize;
-        let off = if long { u64::from_le_bytes(b[e + off_at..e + off_at + 8].try_into().unwrap()) as usize } else { u32_at(b, e + off_at) as usize };
-        if off + size > b.len() {
-            return Err("binder entry runs past the end".into());
-        }
-        out.push(BndFile { entry: e, data: off..off + size });
-    }
-    Ok(out)
-}
-
-/// A texture in a TPF: its header entry and data.
-pub(crate) struct Texture {
-    entry: usize,
-    pub(crate) name: String,
-    pub(crate) data: std::ops::Range<usize>,
-}
-
-pub(crate) fn tpf(b: &[u8]) -> Result<Vec<Texture>, String> {
-    if b.len() < 0x10 || &b[..4] != b"TPF\0" {
-        return Err("not a TPF texture file".into());
-    }
-    let count = u32_at(b, 0x08) as usize;
-    let utf16 = b[0x0E] == 1;
-    let mut out = Vec::new();
-    for i in 0..count {
-        let e = 0x10 + i * 0x14;
-        let (off, size, no) = (u32_at(b, e) as usize, u32_at(b, e + 4) as usize, u32_at(b, e + 0x0C) as usize);
-        let name = if utf16 {
-            let units: Vec<u16> = b[no..].chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|&c| c != 0).collect();
-            String::from_utf16_lossy(&units)
-        } else {
-            b[no..].iter().take_while(|&&c| c != 0).map(|&c| c as char).collect()
-        };
-        if off + size > b.len() {
-            return Err("texture runs past the end".into());
-        }
-        out.push(Texture { entry: e, name, data: off..off + size });
-    }
-    Ok(out)
-}
-
 /// Convergence's atlas files with our icons added -> (textures file, layouts file).
 fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Result<(Vec<u8>, Vec<u8>), String> {
     let bnd = undcx(layouts_dcx)?;
@@ -222,13 +129,9 @@ fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Resu
     let textures = tpf(&tex)?;
     let target = textures.iter().find(|t| t.name == atlas).ok_or(format!("texture {} not found", atlas))?;
     let dds = &tex[target.data.clone()];
-    // One mip level of BC7 with a DX10 header: 148 header bytes, then one byte per pixel.
-    let dxgi = if dds.len() >= 148 && &dds[0x54..0x58] == b"DX10" { u32_at(dds, 0x80) } else { 0 };
-    if dxgi != 98 && dxgi != 99 {
-        return Err(format!("texture {} is not BC7", atlas));
-    }
-    let (height, width) = (u32_at(dds, 0x0C), u32_at(dds, 0x10));
-    if dds.len() != 148 + (width * height) as usize || width % 4 != 0 || height % 4 != 0 {
+    let (width, height) = bc7_dds(dds).map_err(|e| format!("texture {}: {}", atlas, e))?;
+    // One mip level: the header, then one byte per pixel.
+    if dds.len() != DDS_HEADER + (width * height) as usize || width % 4 != 0 || height % 4 != 0 {
         return Err(format!("texture {} has an unexpected size or mip levels", atlas));
     }
 
@@ -298,18 +201,7 @@ fn build(textures_dcx: &[u8], layouts_dcx: &[u8], icons: &[(u32, Rgba)]) -> Resu
     }
     new_text += &text[close..];
     let mut new_bnd = bnd.clone();
-    let fmt = bnd[0x31].reverse_bits();
-    let (usize_at, off_at, long) = bnd4_fields(fmt);
-    let (e, at, len) = (layout.entry, new_bnd.len() as u64, new_text.len() as u64);
-    put_u64(&mut new_bnd, e + 8, len);
-    if let Some(u) = usize_at {
-        put_u64(&mut new_bnd, e + u, len);
-    }
-    if long {
-        put_u64(&mut new_bnd, e + off_at, at);
-    } else {
-        put_u32(&mut new_bnd, e + off_at, at as u32);
-    }
+    set_bnd4_data(&mut new_bnd, layout, bnd.len() as u64, new_text.len() as u64);
     new_bnd.extend_from_slice(new_text.as_bytes());
 
     Ok((redcx(textures_dcx, &out, 1), redcx(layouts_dcx, &new_bnd, 6)))

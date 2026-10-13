@@ -14,6 +14,7 @@ use crate::log;
 use crate::pixels::decode_png;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::OnceLock;
 
 const OVERRIDES: &str = "colors.txt";
 /// The colour is the average of this share of the icon's pixels, its most vivid ones.
@@ -23,8 +24,14 @@ const MAX_SATURATION: f32 = 0.65;
 const MIN_VALUE: f32 = 0.88;
 const MIN_LUMINANCE: f32 = 0.5;
 
-/// Class name -> "#RRGGBB".
-pub fn class_colors(dll_dir: &Path) -> HashMap<&'static str, String> {
+/// Class name -> "#RRGGBB", worked out on first use from `dll_dir`'s icons. The first use must come
+/// after the note icons are made (iconcache.rs does that); later ones get the same colours.
+pub fn class_colors(dll_dir: &Path) -> &'static HashMap<&'static str, String> {
+    static COLOURS: OnceLock<HashMap<&'static str, String>> = OnceLock::new();
+    COLOURS.get_or_init(|| from_files(dll_dir))
+}
+
+fn from_files(dll_dir: &Path) -> HashMap<&'static str, String> {
     let mut out = HashMap::new();
     // Path icons first; a weapons icon only for a class whose path icon gave nothing.
     for which in ["path", "weapons"] {
@@ -126,7 +133,7 @@ mod tests {
     #[ignore = "needs real game files, see the CM_* variables above"]
     fn print_colours() {
         let Ok(dir) = std::env::var("CM_ICON_DIR") else { return };
-        let mut c: Vec<_> = super::class_colors(std::path::Path::new(&dir)).into_iter().collect();
+        let mut c: Vec<_> = super::from_files(std::path::Path::new(&dir)).into_iter().collect();
         c.sort();
         for (class, colour) in c {
             println!("{} {}", class, colour);

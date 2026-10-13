@@ -7,6 +7,7 @@
 
 use crate::log;
 use crate::markers::{Row, ROW_SIZE};
+use crate::mem::{rd, wr};
 use std::collections::HashSet;
 use crate::scan;
 use eldenring::cs::{SoloParam, SoloParamRepository, WorldMapPointParam};
@@ -26,13 +27,6 @@ const HEADER_SIZE: usize = 0x40;
 const ROW_LOCATOR_SIZE: usize = 24; // row_id u64, data offset u64, end offset u64
 const WRAPPER_HEADER: usize = 0x10;
 const WRAPPER_ROW_LOC_SIZE: usize = 8; // row i32, index i32
-
-unsafe fn rd<T: Copy>(p: *const u8) -> T {
-    std::ptr::read_unaligned(p as *const T)
-}
-unsafe fn wr<T>(p: *mut u8, v: T) {
-    std::ptr::write_unaligned(p as *mut T, v)
-}
 
 /// WorldMapPointParam's slots in its FD4ParamResCap: the param file and its size.
 struct ParamSlots {

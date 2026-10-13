@@ -17,6 +17,7 @@ use crate::iconsource::{atlas_icons, detail_images, oodle, DETAIL_IMAGES};
 use crate::noteicons::{LAYOUTS, TEXTURES};
 use crate::log;
 use crate::pixels::{encode_png, Rgba};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -100,7 +101,7 @@ fn write(path: PathBuf, img: &Rgba) -> Result<(), String> {
     fs::write(&path, encode_png(img)?).map_err(|e| format!("{} ({})", path.display(), e))
 }
 
-fn glow_of(colours: &std::collections::HashMap<&'static str, String>, class: &str) -> [u8; 3] {
+fn glow_of(colours: &HashMap<&'static str, String>, class: &str) -> [u8; 3] {
     colours
         .get(class)
         .and_then(|c| u32::from_str_radix(c.trim_start_matches('#'), 16).ok())
@@ -122,7 +123,7 @@ fn make_notes(dll_dir: &Path, hi: &Path, cache: &Path) -> Result<usize, String> 
     let colours = crate::colors::class_colors(dll_dir);
     for note in NOTES {
         if let Some(img) = art.get(&note.icon) {
-            let glow = glow_of(&colours, note.class);
+            let glow = glow_of(colours, note.class);
             write(cache.join("map").join(file_name(note.class, note.which)), &map_note_icon(img, glow))?;
             n += 1;
         }
@@ -131,7 +132,7 @@ fn make_notes(dll_dir: &Path, hi: &Path, cache: &Path) -> Result<usize, String> 
 }
 
 /// Every rune tier's map icon.
-fn make_runes(dll_dir: &Path, hi: &Path, cache: &Path, kraken: crate::iconsource::OodleDecompress) -> Result<usize, String> {
+fn make_runes(dll_dir: &Path, hi: &Path, cache: &Path, kraken: crate::formats::OodleDecompress) -> Result<usize, String> {
     let ids: Vec<u16> = RUNE_ART.iter().map(|&(_, _, icon)| icon).collect();
     let art = detail_images(hi, &ids, kraken)?;
     let colours = crate::colors::class_colors(dll_dir);
@@ -139,7 +140,7 @@ fn make_runes(dll_dir: &Path, hi: &Path, cache: &Path, kraken: crate::iconsource
     for &(class, tier, icon) in RUNE_ART {
         if let Some(img) = art.get(&icon) {
             let file = file_name(class, &format!("{} rune", tier));
-            write(cache.join("map").join(file), &map_rune_icon(img, glow_of(&colours, class)))?;
+            write(cache.join("map").join(file), &map_rune_icon(img, glow_of(colours, class)))?;
             n += 1;
         }
     }

@@ -10,6 +10,7 @@
 mod classes;
 mod colors;
 mod flags;
+mod formats;
 mod generated;
 mod gfx;
 mod iconart;
@@ -18,6 +19,7 @@ mod iconsource;
 mod inject;
 mod log;
 mod markers;
+mod mem;
 mod msg;
 mod noteicons;
 mod notetext;
@@ -87,7 +89,7 @@ fn run() {
     static ROWS: OnceLock<Vec<Option<usize>>> = OnceLock::new();
     // Text ids from FIRST_TEXT_ID on: each marker's label and hint lines in turn; `ids[i]` are
     // marker i's.
-    let colours = log::dll_dir().map(|d| colors::class_colors(d)).unwrap_or_default();
+    let colours = log::dll_dir().map(|d| colors::class_colors(d)).cloned().unwrap_or_default();
     let mut labels = Vec::new();
     let mut ids: Vec<Vec<i32>> = Vec::new();
     for m in markers {
@@ -98,12 +100,7 @@ fn run() {
     let have_labels = match msg::add_labels(labels, || {
         // Labels lost: blank every text line of ours so only the place-name lines remain.
         for &row in ROWS.get().into_iter().flatten().flatten() {
-            for k in 0..8 {
-                let at = (row + 0x30 + 12 * k) as *mut i32;
-                if unsafe { std::ptr::read_unaligned(at) } >= msg::FIRST_TEXT_ID {
-                    unsafe { std::ptr::write_unaligned(at, -1) };
-                }
-            }
+            unsafe { crate::markers::clear_texts_from(row, msg::FIRST_TEXT_ID) };
         }
     }) {
         Ok(()) => true,

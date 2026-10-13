@@ -16,6 +16,7 @@
 //! outline and glow, or your own from ClassMarkers/icons/ (see iconcache.rs; any square PNG works).
 //! A rune marker without a tier icon uses its note's icon; a note without one uses the stock icon.
 
+use crate::formats::u16_at;
 use crate::generated::NOTES;
 use crate::log;
 use crate::pixels::{decode_png, Rgba};
@@ -142,7 +143,7 @@ fn read_tags(b: &[u8], mut pos: usize, end: usize) -> Result<Vec<Tag>, String> {
     let mut out = Vec::new();
     while pos + 2 <= end {
         let start = pos;
-        let h = u16::from_le_bytes([b[pos], b[pos + 1]]);
+        let h = u16_at(b, pos);
         pos += 2;
         let mut len = (h & 63) as usize;
         if len == 63 {
@@ -159,10 +160,6 @@ fn read_tags(b: &[u8], mut pos: usize, end: usize) -> Result<Vec<Tag>, String> {
         }
     }
     Ok(out)
-}
-
-fn u16_at(b: &[u8], at: usize) -> u16 {
-    u16::from_le_bytes([b[at], b[at + 1]])
 }
 
 /// Tags whose body starts with the character id they define.

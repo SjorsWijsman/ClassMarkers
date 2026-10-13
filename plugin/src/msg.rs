@@ -17,9 +17,10 @@ use crate::generated::{CAPTION_SLOTS, MARKERS, NOTES, PLACE_NAME_SLOT};
 use crate::markers::Note;
 use crate::inject::alloc_like;
 use crate::log;
+use crate::mem::{rd, wr};
 use crate::noteicons::NAME_PREFIX;
 use crate::scan;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -72,11 +73,10 @@ fn class_line(notes: &[u32], colours: &HashMap<&str, String>) -> String {
 /// Our label ids: far above anything the game or Convergence uses.
 pub const FIRST_TEXT_ID: i32 = 1_850_000_000;
 
-unsafe fn rd<T: Copy>(p: *const u8) -> T {
-    std::ptr::read_unaligned(p as *const T)
-}
-unsafe fn wr<T>(p: *mut u8, v: T) {
-    std::ptr::write_unaligned(p as *mut T, v)
+/// Where an FMG offset points. The game fixes offsets up into absolute pointers when it loads a
+/// text file; ours (write_fmg) keep the string offsets relative to the file.
+unsafe fn fmg_at(fmg: *const u8, off: u64) -> *const u8 {
+    if off > 0x100_0000 { off as *const u8 } else { fmg.add(off as usize) }
 }
 
 /// The MsgRepository's slot array and its length, once the game has loaded its text.
@@ -117,9 +117,7 @@ fn loaded_slot(repo: (*mut *mut u8, usize), index: usize) -> Option<*mut *mut u8
 unsafe fn read_fmg(fmg: *const u8) -> Vec<(i32, Vec<u16>)> {
     let groups: u32 = rd(fmg.add(0x0C));
     let strings: u32 = rd(fmg.add(0x10));
-    let raw: u64 = rd(fmg.add(0x18));
-    // The game fixes the offsets-table offset up into an absolute pointer when it loads.
-    let offsets = if raw > 0x100_0000 { raw as *const u8 } else { fmg.add(raw as usize) };
+    let offsets = fmg_at(fmg, rd(fmg.add(0x18)));
     let mut out = vec![];
     for g in 0..groups as usize {
         let grp = fmg.add(0x28 + g * 16);
@@ -133,7 +131,7 @@ unsafe fn read_fmg(fmg: *const u8) -> Vec<(i32, Vec<u16>)> {
             if off == 0 {
                 continue;
             }
-            let p = if off > 0x100_0000 { off as *const u16 } else { fmg.add(off as usize) as *const u16 };
+            let p = fmg_at(fmg, off) as *const u16;
             let mut len = 0;
             while *p.add(len) != 0 {
                 len += 1;
@@ -155,7 +153,7 @@ unsafe fn build_fmg(original: *const u8, ours: &[(i32, Vec<u16>)]) -> Result<*mu
 
 /// `entries` plus `ours` (ours win on equal ids), sorted by id.
 fn merge_entries(mut entries: Vec<(i32, Vec<u16>)>, ours: &[(i32, Vec<u16>)]) -> Vec<(i32, Vec<u16>)> {
-    let our_ids: std::collections::HashSet<i32> = ours.iter().map(|(id, _)| *id).collect();
+    let our_ids: HashSet<i32> = ours.iter().map(|(id, _)| *id).collect();
     entries.retain(|(id, _)| !our_ids.contains(id));
     entries.extend(ours.iter().cloned());
     entries.sort_by_key(|(id, _)| *id);
@@ -196,8 +194,7 @@ unsafe fn write_fmg(f: *mut u8, entries: &[(i32, Vec<u16>)], size: usize) {
 /// Where string `id` of an in-memory FMG is, if it has one.
 pub unsafe fn fmg_string(fmg: *const u8, id: i32) -> Option<*mut u16> {
     let groups: u32 = rd(fmg.add(0x0C));
-    let raw: u64 = rd(fmg.add(0x18));
-    let offsets = if raw > 0x100_0000 { raw as *const u8 } else { fmg.add(raw as usize) };
+    let offsets = fmg_at(fmg, rd(fmg.add(0x18)));
     for g in 0..groups as usize {
         let grp = fmg.add(0x28 + g * 16);
         let (index, first, last): (i32, i32, i32) = (rd(grp), rd(grp.add(4)), rd(grp.add(8)));
@@ -206,8 +203,7 @@ pub unsafe fn fmg_string(fmg: *const u8, id: i32) -> Option<*mut u16> {
             if off == 0 {
                 return None;
             }
-            let p = if off > 0x100_0000 { off as *mut u16 } else { fmg.add(off as usize) as *mut u16 };
-            return Some(p);
+            return Some(fmg_at(fmg, off) as *mut u16);
         }
     }
     None
@@ -255,7 +251,7 @@ fn patch_and_watch(
 
 /// The texts `ids` from a text family's layers (slots, lowest first; a higher layer wins), as
 /// the game has them now.
-pub fn read_texts(slots: &[usize], ids: &std::collections::HashSet<i32>) -> Result<HashMap<i32, String>, String> {
+pub fn read_texts(slots: &[usize], ids: &HashSet<i32>) -> Result<HashMap<i32, String>, String> {
     let repo = repository()?;
     let mut out = HashMap::new();
     for &s in slots {
@@ -281,7 +277,7 @@ pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> R
     let repo = repository()?;
     let slot = loaded_slot(repo, PLACE_NAME_SLOT).ok_or("place-name text not loaded")?;
     // The place names our markers use must be there, or this slot holds some other text.
-    let place_ids: std::collections::HashSet<i32> = MARKERS.iter().map(|m| m.text_id).filter(|&id| id >= 0).collect();
+    let place_ids: HashSet<i32> = MARKERS.iter().map(|m| m.text_id).filter(|&id| id >= 0).collect();
     let present = unsafe { read_fmg(*slot) }.iter().filter(|(id, _)| place_ids.contains(id)).count();
     if !place_ids.is_empty() && present * 2 < place_ids.len() {
         return Err(format!(
@@ -302,7 +298,7 @@ pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> R
 /// with their tracker text (tracker.rs). Returns how many descriptions were changed.
 pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result<usize, String> {
     let repo = repository()?;
-    let colours = log::dll_dir().map(|d| crate::colors::class_colors(d)).unwrap_or_default();
+    let colours = log::dll_dir().map(|d| crate::colors::class_colors(d)).cloned().unwrap_or_default();
     let classes: std::collections::HashSet<_> = NOTES.iter().map(|n| n.class).collect();
     log!("Class colours: {} of {} classes", colours.len(), classes.len());
     crate::tracker::init(colours.clone());
