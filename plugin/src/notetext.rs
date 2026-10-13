@@ -3,14 +3,14 @@
 //! item names. generated.rs refers to entries by note and line number, as tools/generate.py
 //! (note_lines) numbers them: the lines holding " - ", in order, formatting removed.
 
-use crate::generated::{MARKERS, NOTES, NOTE_TEXTS};
+use crate::generated::{CAPTION_SLOTS, MARKERS, NAME_SLOTS, NOTES, NOTE_TEXTS};
 use crate::log;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
-/// Description and name text families: (ItemLot category, slots base / dlc01 / dlc02).
-const CAPTIONS: [usize; 3] = [24, 321, 421];
-const NAMES: [(u8, [usize; 3]); 4] = [(1, [10, 319, 419]), (2, [11, 310, 410]), (3, [12, 313, 413]), (4, [13, 316, 416])];
+/// The goods descriptions (the class notes are goods): slots base / dlc01 / dlc02.
+const CAPTIONS: [usize; 3] = CAPTION_SLOTS[0].1;
+const _: () = assert!(CAPTION_SLOTS[0].0 == 1, "CAPTION_SLOTS must start with goods");
 
 struct Texts {
     /// Note goods id -> its entry lines (name, location).
@@ -67,7 +67,7 @@ fn load_with(read: Reader) -> Result<(), String> {
         .chain(NOTE_TEXTS.iter().flat_map(|t| t.sections).flat_map(|s| s.entries).filter_map(|e| e.name_item))
         .collect();
     let mut items = HashMap::new();
-    for (cat, slots) in NAMES {
+    for (cat, slots) in NAME_SLOTS {
         let ids: HashSet<i32> = wanted.iter().filter(|(c, _)| *c == cat).map(|&(_, id)| id as i32).collect();
         if !ids.is_empty() {
             for (id, name) in read(&slots, &ids)? {

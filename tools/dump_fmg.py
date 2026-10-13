@@ -74,9 +74,14 @@ def fmg(data):
     return out
 
 def extract_msgbnd(src, dst):
-    """Decode every FMG in a .msgbnd.dcx to <dst>/<name>.fmg.json."""
+    """Decode every FMG in a .msgbnd.dcx to <dst>/<name>.fmg.json, and their file ids (the game's
+    MsgRepository slots) to <dst>/file_ids.json as {name without .fmg: id}."""
     os.makedirs(dst, exist_ok=True)
+    ids = {}
     for fid, name, blob in bnd4(dcx(open(src, "rb").read())):
         base = os.path.basename(name.replace("\\", "/"))
+        ids[base[:-len(".fmg")]] = fid
         with open(os.path.join(dst, base + ".json"), "w", encoding="utf-8") as f:
             json.dump(fmg(blob), f, ensure_ascii=False, indent=1)
+    with open(os.path.join(dst, "file_ids.json"), "w", encoding="utf-8") as f:
+        json.dump(ids, f, indent=1)

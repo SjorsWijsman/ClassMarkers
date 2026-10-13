@@ -2,6 +2,12 @@
 use crate::markers::{GenMarker, Item, Note};
 use crate::tracker::{NoteEntry, NoteSection, NoteText};
 
+/// The item text files we use, by their file id in item.msgbnd (= MsgRepository slot).
+pub const PLACE_NAME_SLOT: usize = 19;
+/// Per ItemLot category, the layers base / _dlc01 / _dlc02 of its descriptions and names.
+pub const CAPTION_SLOTS: [(u8, [usize; 3]); 4] = [(1, [24, 321, 421]), (2, [25, 312, 412]), (3, [26, 315, 415]), (4, [27, 318, 418])];
+pub const NAME_SLOTS: [(u8, [usize; 3]); 4] = [(1, [10, 319, 419]), (2, [11, 310, 410]), (3, [12, 313, 413]), (4, [13, 316, 416])];
+
 /// Every class note, with the event flags its pickups set (owning the note = any flag on).
 pub const NOTES: &[Note] = &[
     Note { goods_id: 8800, class: "Retainer", which: "path", flags: &[1041367900], icon: 45521 },

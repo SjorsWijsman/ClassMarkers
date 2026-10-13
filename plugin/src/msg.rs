@@ -13,7 +13,7 @@
 //! base, _dlc01 and _dlc02. The game looks an id up in the highest layer first, so a description
 //! is changed in the highest layer that has it.
 
-use crate::generated::NOTES;
+use crate::generated::{CAPTION_SLOTS, MARKERS, NOTES, PLACE_NAME_SLOT};
 use crate::markers::Note;
 use crate::inject::alloc_like;
 use crate::log;
@@ -26,15 +26,6 @@ use std::time::Duration;
 
 /// `mov rdi, [rip+X]` loading the MsgRepositoryImp singleton.
 const MSG_REPOSITORY_AOB: &str = "48 8B 3D ?? ?? ?? ?? 44 0F B6 30 48 85 FF 75";
-/// PlaceName's slot (its file id in item.msgbnd).
-const PLACE_NAME_SLOT: usize = 19;
-/// Description slots per ItemLot category, lowest layer first: base, _dlc01, _dlc02.
-const CAPTION_SLOTS: [(u8, [usize; 3]); 4] = [
-    (1, [24, 321, 421]), // GoodsCaption
-    (2, [25, 312, 412]), // WeaponCaption
-    (3, [26, 315, 415]), // ProtectorCaption
-    (4, [27, 318, 418]), // AccessoryCaption
-];
 /// On-screen size of a note's own (square) icon in item descriptions, in pixels. A text box puts
 /// an image's bottom on the text baseline and grows the line upward for anything taller (vspace is
 /// ignored), so the icon files are cut to sit on the baseline like a letter (tools/note_icons.py).
@@ -289,6 +280,17 @@ pub fn add_labels(labels: Vec<String>, on_lost: impl Fn() + Send + 'static) -> R
         .collect();
     let repo = repository()?;
     let slot = loaded_slot(repo, PLACE_NAME_SLOT).ok_or("place-name text not loaded")?;
+    // The place names our markers use must be there, or this slot holds some other text.
+    let place_ids: std::collections::HashSet<i32> = MARKERS.iter().map(|m| m.text_id).filter(|&id| id >= 0).collect();
+    let present = unsafe { read_fmg(*slot) }.iter().filter(|(id, _)| place_ids.contains(id)).count();
+    if !place_ids.is_empty() && present * 2 < place_ids.len() {
+        return Err(format!(
+            "slot {} holds only {} of our {} place names, so it isn't PlaceName (unsupported game version?)",
+            PLACE_NAME_SLOT,
+            present,
+            place_ids.len()
+        ));
+    }
     let count = ours.len();
     patch_and_watch(slot, "place-name", Box::new(move |_| ours.clone()), on_lost)?;
     log!("Added {} labels to the map's place names", count);
@@ -330,6 +332,17 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result
                     }
                 }
             }
+        }
+        // Nearly every listed item has a description, or these slots hold some other text.
+        if owner.len() * 2 < wanted.len() {
+            log!(
+                "Descriptions for item category {}: only {} of {} found in slots {:?}, skipped (unsupported game version?)",
+                category,
+                owner.len(),
+                wanted.len(),
+                slots
+            );
+            continue;
         }
         for (l, slot) in layers.iter().enumerate() {
             let Some(slot) = *slot else { continue };

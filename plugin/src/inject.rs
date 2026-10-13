@@ -9,21 +9,18 @@ use crate::log;
 use crate::markers::{Row, ROW_SIZE};
 use std::collections::HashSet;
 use crate::scan;
+use eldenring::cs::{SoloParam, SoloParamRepository, WorldMapPointParam};
+use eldenring::fd4::FD4ParamResCap;
+use fromsoftware_shared::FromStatic;
 use std::ffi::c_void;
 use std::time::Duration;
 
-/// `mov rcx, [rip+X]` loading the global param list (SoloParamRepository's ParamList*).
-const PARAM_LIST_AOB: &str = "48 8B 0D ?? ?? ?? ?? 48 85 C9 0F 84 ?? ?? ?? ?? 45 33 C0 BA 90";
 /// The slice of DLNew's operator delete that calls the "which allocator owns this pointer"
 /// lookup; the call's rel32 sits at +0x1A.
 const DL_FIND_OWNER_AOB: &str = "48 8B 5F 20 48 C7 47 20 00 00 00 00 48 8B 7C 24 38 48 85 DB 75 26 \
     48 8B CE E8 ?? ?? ?? ?? 48 8B D8 48 85 C0 75 16 4C 8D 05 ?? ?? ?? ?? \
     8D 50 64 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 4C 8B 03 48 8B D6 \
     48 8B CB 41 FF 50 68";
-
-const PARAM_LIST_ENTRIES_OFFSET: usize = 136;
-const PARAM_LIST_ENTRY_STRIDE: usize = 72;
-const PARAM_LIST_ENTRY_COUNT: usize = 186;
 
 const HEADER_SIZE: usize = 0x40;
 const ROW_LOCATOR_SIZE: usize = 24; // row_id u64, data offset u64, end offset u64
@@ -37,62 +34,56 @@ unsafe fn wr<T>(p: *mut u8, v: T) {
     std::ptr::write_unaligned(p as *mut T, v)
 }
 
-/// DLWString (the engine's std::wstring): inline buffer of 8 wchar_t or a pointer,
-/// then length and capacity.
-unsafe fn read_dlwstring(p: *const u8) -> String {
-    let len: u64 = rd(p.add(16));
-    let cap: u64 = rd(p.add(24));
-    if len > 256 {
-        return String::new();
-    }
-    let chars = if cap > 7 { rd::<*const u16>(p) } else { p as *const u16 };
-    String::from_utf16_lossy(std::slice::from_raw_parts(chars, len as usize))
+/// WorldMapPointParam's slots in its FD4ParamResCap: the param file and its size.
+struct ParamSlots {
+    file: *mut *mut u8,
+    size: *mut u64,
 }
 
-/// Wait for the game to finish creating its params, then return the ParamList.
-fn wait_for_param_list() -> Result<*const u8, String> {
-    let mut list_slot: Option<*const *const u8> = None;
+/// Wait for the game to load WorldMapPointParam, found through SoloParamRepository (the engine's
+/// own type info, via fromsoftware-rs), then return where its file pointer and size are.
+fn wait_for_world_map_points() -> Result<ParamSlots, String> {
+    let mut last = String::new();
     for second in 0..300 {
-        if list_slot.is_none() {
-            // Keep looking while it isn't there yet; matches that disagree are an error right away.
-            let hits = scan::find_all(PARAM_LIST_AOB);
-            if !hits.is_empty() {
-                list_slot = Some(scan::global_of("param list", &hits, 3, 7)? as *const *const u8);
-                log!("Found the param list pointer");
+        match world_map_points() {
+            Ok(slots) => {
+                log!("WorldMapPointParam ready after {} s", second);
+                return Ok(slots);
             }
-        }
-        if let Some(slot) = list_slot {
-            let list = unsafe { *slot };
-            if !list.is_null() {
-                let filled = (0..PARAM_LIST_ENTRY_COUNT)
-                    .filter(|i| unsafe {
-                        !rd::<*const u8>(list.add(PARAM_LIST_ENTRIES_OFFSET + i * PARAM_LIST_ENTRY_STRIDE))
-                            .is_null()
-                    })
-                    .count();
-                if filled == PARAM_LIST_ENTRY_COUNT {
-                    log!("Params ready after {} s", second);
-                    return Ok(list);
-                }
-            }
+            Err(e) => last = e,
         }
         std::thread::sleep(Duration::from_secs(1));
     }
-    Err(match list_slot {
-        None => "the param list pattern was not found in the game (unsupported game version?)".into(),
-        Some(_) => "the game's params were not ready after 5 minutes".into(),
-    })
+    Err(format!("WorldMapPointParam was not loaded after 5 minutes ({})", last))
 }
 
-/// The param header (FD4ParamResCap) for a param, by name.
-unsafe fn find_param_header(list: *const u8, name: &str) -> Option<*mut u8> {
-    for i in 0..PARAM_LIST_ENTRY_COUNT {
-        let res_cap: *const u8 = rd(list.add(PARAM_LIST_ENTRIES_OFFSET + i * PARAM_LIST_ENTRY_STRIDE));
-        if !res_cap.is_null() && read_dlwstring(res_cap.add(0x18)) == name {
-            return Some(rd(res_cap.add(0x80)));
-        }
+fn world_map_points() -> Result<ParamSlots, String> {
+    let repo = SoloParamRepository::instance_ptr().map_err(|e| format!("no param repository yet: {:?}", e))?;
+    if repo.is_null() {
+        return Err("no param repository yet".into());
     }
-    None
+    // Raw reads only: the game may still be filling the repository in.
+    let holder = unsafe { (*repo).solo_param_holders.get(WorldMapPointParam::INDEX as usize) }
+        .ok_or("the param repository has no WorldMapPointParam slot")?;
+    let res_cap = holder.get_res_cap(0).ok_or("WorldMapPointParam not created yet")?;
+    if res_cap.res_cap.name != WorldMapPointParam::NAME {
+        return Err(format!(
+            "slot {} holds {}, not WorldMapPointParam (unsupported game version?)",
+            WorldMapPointParam::INDEX,
+            res_cap.res_cap.name
+        ));
+    }
+    let param: *mut FD4ParamResCap = res_cap.param_res_cap.as_ptr();
+    let slots = unsafe {
+        ParamSlots {
+            file: std::ptr::addr_of_mut!((*param).data) as *mut *mut u8,
+            size: std::ptr::addr_of_mut!((*param).size),
+        }
+    };
+    if unsafe { std::ptr::read_volatile(slots.file) }.is_null() {
+        return Err("WorldMapPointParam has no data yet".into());
+    }
+    Ok(slots)
 }
 
 /// Allocate `size` bytes (16-aligned, zeroed) from the engine allocator that owns `neighbor`,
@@ -123,11 +114,8 @@ const FIRST_SLOT: i32 = 20;
 /// Add `markers` (map block, row, log label) to the world map. Returns, in `markers` order, the
 /// address of each row's data in the live table (None if its map block had no free row id).
 pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<Option<usize>>, String> {
-    let list = wait_for_param_list()?;
+    let ParamSlots { file: file_ptr_ref, size: file_size_ref } = wait_for_world_map_points()?;
     unsafe {
-        let header = find_param_header(list, "WorldMapPointParam").ok_or("WorldMapPointParam not found")?;
-        let file_ptr_ref = header.add(0x80) as *mut *mut u8;
-        let file_size_ref = header.add(0x78) as *mut i64;
         let old = *file_ptr_ref;
         let old_rows: u16 = rd(old.add(0x0A));
         let type_off: u64 = rd(old.add(0x10));
@@ -203,7 +191,7 @@ pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<Option<usize>>, St
 
         // Switch the param over to the enlarged copy. The original buffer is left alone.
         *file_ptr_ref = new;
-        *file_size_ref = file_size as i64;
+        *file_size_ref = file_size as u64;
         log!("WorldMapPointParam now has {} rows", total);
 
         // Confirm a minute later that the game is still using our table.
