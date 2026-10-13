@@ -84,7 +84,7 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "class_markers"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "bcdec_rs",
  "eldenring",

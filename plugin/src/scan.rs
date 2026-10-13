@@ -1,5 +1,7 @@
 //! Byte-pattern search over the game executable's code section.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 
 /// The executable's `.text` section as a byte slice.
@@ -32,8 +34,25 @@ fn parse(pattern: &str) -> Vec<Option<u8>> {
         .collect()
 }
 
-/// Every address where `pattern` matches.
+/// Every address where `pattern` matches. A scan reads the whole code section, so matches are
+/// remembered; finding none isn't, as the game may not have unpacked that code yet.
 pub fn find_all(pattern: &str) -> Vec<*const u8> {
+    static FOUND: Mutex<Option<HashMap<String, Vec<usize>>>> = Mutex::new(None);
+    if let Some(hits) = FOUND.lock().unwrap().as_ref().and_then(|f| f.get(pattern)) {
+        return hits.iter().map(|&a| a as *const u8).collect();
+    }
+    let hits = scan(pattern);
+    if !hits.is_empty() {
+        FOUND
+            .lock()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(pattern.to_string(), hits.iter().map(|&a| a as usize).collect());
+    }
+    hits
+}
+
+fn scan(pattern: &str) -> Vec<*const u8> {
     let pat = parse(pattern);
     let Some(text) = text_section() else { return vec![] };
     let first = pat[0].expect("pattern must start with a fixed byte");
