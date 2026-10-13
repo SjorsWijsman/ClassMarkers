@@ -5,9 +5,8 @@ ClassMarkers.dll
 # Runtime log (written next to the DLL)
 *.log
 
-# Generator: extracted Convergence data, bundled third-party Python modules
+# Generator: extracted Convergence data
 tools/cache/
-tools/pylib/
 __pycache__/
 
 # This machine's ConvergenceER location

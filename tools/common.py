@@ -8,7 +8,6 @@ not in git); without it, the folder this project sits in is used.
 """
 import os
 import re
-import sys
 import winreg
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
@@ -34,7 +33,6 @@ MENU_DIR = os.path.join(CACHE, "menu")             # decoded menu text
 REG_DIR = os.path.join(CACHE, "reg")               # params from regulation.bin
 GENERATED_RS = os.path.join(ROOT, "plugin", "src", "generated.rs")
 
-sys.path.insert(0, os.path.join(TOOLS, "pylib"))   # bundled third-party modules (zstandard)
 
 
 def elden_ring_game_dir():
