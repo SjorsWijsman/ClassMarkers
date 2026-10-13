@@ -19,14 +19,13 @@ use crate::log;
 use crate::markers::Note;
 use crate::mem::{rd, wr};
 use crate::noteicons::NAME_PREFIX;
-use crate::scan;
+use eldenring::cs::MsgRepositoryImp;
+use fromsoftware_shared::FromStatic;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Once};
 use std::time::Duration;
 
-/// `mov rdi, [rip+X]` loading the MsgRepositoryImp singleton.
-const MSG_REPOSITORY_AOB: &str = "48 8B 3D ?? ?? ?? ?? 44 0F B6 30 48 85 FF 75";
 /// On-screen size of a note's own (square) icon in item descriptions, in pixels. A text box puts
 /// an image's bottom on the text baseline and grows the line upward for anything taller (vspace is
 /// ignored), so the icon files are cut to sit on the baseline like a letter (iconart.rs text_icon).
@@ -83,19 +82,17 @@ unsafe fn fmg_at(fmg: *const u8, off: u64) -> *const u8 {
     }
 }
 
-/// Where the game keeps its MsgRepository pointer (null before the text is loaded and once the game
-/// has torn it down).
-fn repository_global() -> Result<*const *const u8, String> {
-    Ok(scan::find_global("text repository", MSG_REPOSITORY_AOB, 3, 7)? as *const *const u8)
+/// The game's MsgRepository (found through its type info by fromsoftware-rs), while it exists:
+/// none before the text is loaded and once the game has torn it down.
+fn repository_object() -> Option<*const u8> {
+    MsgRepositoryImp::instance_ptr().ok().map(|p| p as *const u8)
 }
 
 /// The MsgRepository's slot array and its length, once the game has loaded its text.
 fn repository() -> Result<(*mut *mut u8, usize), String> {
-    let repo_slot = repository_global()?;
     for _ in 0..600 {
         unsafe {
-            let repo = *repo_slot;
-            if !repo.is_null() {
+            if let Some(repo) = repository_object() {
                 let files: *const *mut *mut u8 = rd(repo.add(0x08));
                 let count: i32 = rd(repo.add(0x14));
                 if !files.is_null() && count > PLACE_NAME_SLOT as i32 {
@@ -258,10 +255,9 @@ fn patch_and_watch(
 /// Every 5 s, re-apply each patch whose text file the game has loaded again. Stops when the game
 /// tears its text down (shutting down), so it never reads freed text files.
 fn watch_texts() {
-    let Ok(repo) = repository_global() else { return };
     loop {
         std::thread::sleep(Duration::from_secs(5));
-        if unsafe { *repo }.is_null() {
+        if repository_object().is_none() {
             return;
         }
         WATCHES.lock().unwrap().retain(|w| {

@@ -92,11 +92,11 @@ fn weapon_ids(id: u32) -> [u32; 2] {
 
 /// The class notes whose pickup flags are on (fallback).
 fn notes_from_flags(flags: &Flags) -> BTreeSet<u32> {
-    NOTES.iter().filter(|n| n.flags.iter().any(|&f| flags.get(f) == Some(true))).map(|n| n.goods_id).collect()
+    NOTES.iter().filter(|n| n.flags.iter().any(|&f| flags.get(f))).map(|n| n.goods_id).collect()
 }
 
 fn obtained(item: &Item, owned: Option<&Owned>, flags: Option<&Flags>) -> bool {
-    let picked_up = item.flag > 0 && flags.and_then(|f| f.get(item.flag)) == Some(true);
+    let picked_up = item.flag > 0 && flags.is_some_and(|f| f.get(item.flag));
     picked_up || owned.is_some_and(|o| o.has(item.category, item.id))
 }
 
@@ -111,9 +111,6 @@ fn describe(notes: &BTreeSet<u32>) -> String {
 }
 
 pub fn watch(rows: Vec<Watched>) {
-    let flags = Flags::resolve()
-        .map_err(|e| log!("Event flags can't be read ({}); only items you own count as obtained", e))
-        .ok();
     let task = match CSTaskImp::wait_for_instance(Duration::from_secs(300)) {
         Ok(t) => t,
         Err(_) => {
@@ -131,6 +128,7 @@ pub fn watch(rows: Vec<Watched>) {
                 return;
             }
             let owned = Owned::read();
+            let flags = Flags::current();
             let (notes, source) = match (&owned, &flags) {
                 (Some(o), _) => (o.notes(), "inventory"),
                 (None, Some(f)) => (notes_from_flags(f), "pickup flags"),

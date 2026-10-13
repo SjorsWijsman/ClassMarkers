@@ -10,6 +10,7 @@ use crate::markers::{Row, ROW_SIZE};
 use crate::mem::{rd, wr};
 use crate::scan;
 use eldenring::cs::{SoloParam, SoloParamRepository, WorldMapPointParam};
+use eldenring::dlkr::DLAllocator;
 use eldenring::fd4::FD4ParamResCap;
 use fromsoftware_shared::FromStatic;
 use std::collections::HashSet;
@@ -84,17 +85,12 @@ fn world_map_points() -> Result<ParamSlots, String> {
 /// so the engine can free our buffer exactly like the one it replaces.
 pub unsafe fn alloc_like(neighbor: *const u8, size: usize) -> Result<*mut u8, String> {
     let hit = scan::find_unique("allocator lookup", DL_FIND_OWNER_AOB)?;
-    let find_owner: extern "C" fn(*const c_void) -> *mut c_void =
+    let find_owner: extern "C" fn(*const c_void) -> *const DLAllocator =
         std::mem::transmute(scan::rip_relative(hit, 0x1A, 0x1E));
-    let allocator = find_owner(neighbor as *const c_void);
-    if allocator.is_null() {
-        return Err("no engine allocator owns the original marker table".into());
-    }
-    // DLAllocator vtable: +0x50 = allocate_aligned(self, size, alignment)
-    let vtable: *const usize = rd(allocator as *const u8);
-    let allocate_aligned: extern "C" fn(*mut c_void, usize, usize) -> *mut u8 =
-        std::mem::transmute(*vtable.add(0x50 / 8));
-    let p = allocate_aligned(allocator, size, 16);
+    let Some(allocator) = find_owner(neighbor as *const c_void).as_ref() else {
+        return Err("no engine allocator owns the original buffer".into());
+    };
+    let p = (allocator.vftable.allocate_aligned)(allocator, size, 16) as *mut u8;
     if p.is_null() || (p as usize) & 15 != 0 {
         return Err(format!("engine allocator refused {} bytes", size));
     }

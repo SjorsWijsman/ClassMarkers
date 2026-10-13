@@ -80,26 +80,6 @@ pub fn find_unique(what: &str, pattern: &str) -> Result<*const u8, String> {
     }
 }
 
-/// The global that a RIP-relative load matching `pattern` reads (see rip_relative). A global is
-/// often loaded in several places, so every match must agree on it.
-pub fn find_global(what: &str, pattern: &str, disp_offset: usize, next_offset: usize) -> Result<*const u8, String> {
-    global_of(what, &find_all(pattern), disp_offset, next_offset)
-}
-
-/// find_global for matches already found.
-pub fn global_of(what: &str, hits: &[*const u8], disp_offset: usize, next_offset: usize) -> Result<*const u8, String> {
-    let targets: std::collections::BTreeSet<usize> =
-        hits.iter().map(|&h| unsafe { rip_relative(h, disp_offset, next_offset) } as usize).collect();
-    match targets.len() {
-        1 => Ok(*targets.first().unwrap() as *const u8),
-        0 => Err(format!("the {} pattern was not found (unsupported game version?)", what)),
-        n => Err(format!(
-            "the {} pattern points at {} different places, expected 1 (unsupported game version?)",
-            what, n
-        )),
-    }
-}
-
 /// Resolve a RIP-relative operand: the i32 at `at + disp_offset`, relative to `at + next_offset`.
 pub unsafe fn rip_relative(at: *const u8, disp_offset: usize, next_offset: usize) -> *const u8 {
     let disp = std::ptr::read_unaligned(at.add(disp_offset) as *const i32);
