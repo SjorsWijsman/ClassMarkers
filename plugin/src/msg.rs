@@ -6,8 +6,8 @@
 //! A loaded text file (FMG) is rebuilt into a larger buffer with our entries and its
 //! MsgRepository slot is pointed at the copy. Same approach as Map For Goblins - DLL
 //! (goblin_messages.cpp: patch_fmg_in_memory), including allocating from the engine allocator
-//! that owns the original buffer so the engine can free ours. A watcher re-applies a patch if the
-//! game ever loads that text again.
+//! that owns the original buffer so the engine can free ours. One watcher thread re-applies a
+//! patch if the game ever loads that text again.
 //!
 //! Each text family exists in three layers, each in its own slot (its file id in item.msgbnd):
 //! base, _dlc01 and _dlc02. The game looks an id up in the highest layer first, so a description
@@ -22,7 +22,7 @@ use crate::noteicons::NAME_PREFIX;
 use crate::scan;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Once};
 use std::time::Duration;
 
 /// `mov rdi, [rip+X]` loading the MsgRepositoryImp singleton.
@@ -79,9 +79,15 @@ unsafe fn fmg_at(fmg: *const u8, off: u64) -> *const u8 {
     if off > 0x100_0000 { off as *const u8 } else { fmg.add(off as usize) }
 }
 
+/// Where the game keeps its MsgRepository pointer (null before the text is loaded and once the game
+/// has torn it down).
+fn repository_global() -> Result<*const *const u8, String> {
+    Ok(scan::find_global("text repository", MSG_REPOSITORY_AOB, 3, 7)? as *const *const u8)
+}
+
 /// The MsgRepository's slot array and its length, once the game has loaded its text.
 fn repository() -> Result<(*mut *mut u8, usize), String> {
-    let repo_slot = scan::find_global("text repository", MSG_REPOSITORY_AOB, 3, 7)? as *const *const u8;
+    let repo_slot = repository_global()?;
     for _ in 0..600 {
         unsafe {
             let repo = *repo_slot;
@@ -212,7 +218,19 @@ pub unsafe fn fmg_string(fmg: *const u8, id: i32) -> Option<*mut u16> {
 /// Our entries for a loaded text file, computed from that file (so a re-load is patched afresh).
 type Entries = Box<dyn Fn(*const u8) -> Vec<(i32, Vec<u16>)> + Send>;
 
-/// Point `slot` at a copy of its text file with `entries` added, and keep it that way: a watcher
+/// A patched text file the watcher keeps patched.
+struct Watch {
+    /// The repository slot, and our copy that should be in it.
+    slot: usize,
+    ours: Arc<AtomicUsize>,
+    what: &'static str,
+    entries: Entries,
+    on_lost: Box<dyn Fn() + Send>,
+}
+
+static WATCHES: Mutex<Vec<Watch>> = Mutex::new(Vec::new());
+
+/// Point `slot` at a copy of its text file with `entries` added, and keep it that way: the watcher
 /// re-applies the patch if the game ever loads that text again (and calls `on_lost` if it can't).
 /// Returns where our current copy is (updated by the watcher).
 fn patch_and_watch(
@@ -224,29 +242,44 @@ fn patch_and_watch(
     let patched = unsafe { build_fmg(*slot, &entries(*slot))? };
     unsafe { *slot = patched };
     let ours = Arc::new(AtomicUsize::new(patched as usize));
-    let shared = ours.clone();
-    let (slot, mut current) = (slot as usize, patched as usize);
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(5));
-        let now = unsafe { *(slot as *const usize) };
-        if now == current || now == 0 {
-            continue;
-        }
-        log!("The game reloaded its {} text; adding ours again", what);
-        match unsafe { build_fmg(now as *const u8, &entries(now as *const u8)) } {
-            Ok(p) => {
-                shared.store(p as usize, Ordering::Relaxed);
-                unsafe { *(slot as *mut usize) = p as usize };
-                current = p as usize;
-            }
-            Err(e) => {
-                log!("Could not re-add our {} text ({})", what, e);
-                on_lost();
-                return;
-            }
-        }
+    let watch = Watch { slot: slot as usize, ours: ours.clone(), what, entries, on_lost: Box::new(on_lost) };
+    WATCHES.lock().unwrap().push(watch);
+    static STARTED: Once = Once::new();
+    STARTED.call_once(|| {
+        std::thread::spawn(watch_texts);
     });
     Ok(ours)
+}
+
+/// Every 5 s, re-apply each patch whose text file the game has loaded again. Stops when the game
+/// tears its text down (shutting down), so it never reads freed text files.
+fn watch_texts() {
+    let Ok(repo) = repository_global() else { return };
+    loop {
+        std::thread::sleep(Duration::from_secs(5));
+        if unsafe { *repo }.is_null() {
+            return;
+        }
+        WATCHES.lock().unwrap().retain(|w| {
+            let now = unsafe { *(w.slot as *const usize) };
+            if now == w.ours.load(Ordering::Relaxed) || now == 0 {
+                return true;
+            }
+            log!("The game reloaded its {} text; adding ours again", w.what);
+            match unsafe { build_fmg(now as *const u8, &(w.entries)(now as *const u8)) } {
+                Ok(p) => {
+                    w.ours.store(p as usize, Ordering::Relaxed);
+                    unsafe { *(w.slot as *mut usize) = p as usize };
+                    true
+                }
+                Err(e) => {
+                    log!("Could not re-add our {} text ({})", w.what, e);
+                    (w.on_lost)();
+                    false
+                }
+            }
+        });
+    }
 }
 
 /// The texts `ids` from a text family's layers (slots, lowest first; a higher layer wins), as
