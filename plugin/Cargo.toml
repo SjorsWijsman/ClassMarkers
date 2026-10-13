@@ -1,17 +1,18 @@
 [package]
 name = "class_markers"
-version = "1.0.11"
+version = "1.1.0"
 edition = "2021"
 license = "MIT"
 
 [lib]
 name = "ClassMarkers"
-# rlib only so `cargo test` can run the gfx builder test (src/gfx.rs)
+# rlib too, so `cargo test` can build and run the unit tests
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 bcdec_rs = "0.2.0"
-# Elden Ring structures (inventory, task system), pinned to the revision this was written against.
+# Elden Ring structures (params, inventory, event flags, text, allocator, task system), pinned to the
+# revision this was written against.
 eldenring = { git = "https://github.com/vswarte/fromsoftware-rs", rev = "59fbd3b" }
 fromsoftware-shared = { git = "https://github.com/vswarte/fromsoftware-rs", rev = "59fbd3b" }
 image = { version = "0.25.10", default-features = false }
