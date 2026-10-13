@@ -1,0 +1,48 @@
+# Releases minor and major versions by itself: after CI passes on a push to main, if
+# plugin/Cargo.toml's version is X.Y.0 and has no tag yet, release.yml builds and publishes it for
+# the commit CI tested. Patch versions (X.Y.1, ...) are only released by pushing their tag by hand.
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0 # the tags, to see whether this version was released already
+
+      - name: Is this a new minor or major version?
+        id: version
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' plugin/Cargo.toml | head -n 1)
+          if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.0$ ]]; then
+            echo "Version $v is a patch: not released automatically."
+          elif git rev-parse -q --verify "refs/tags/v$v" > /dev/null; then
+            echo "v$v is released already."
+          else
+            echo "Releasing v$v."
+            echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: check
+    if: needs.check.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.check.outputs.tag }}
+      sha: ${{ github.event.workflow_run.head_sha }}
+    permissions:
+      contents: write

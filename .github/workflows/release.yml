@@ -1,11 +1,24 @@
-# Builds a release when a version tag is pushed (git tag v1.0.0 && git push origin v1.0.0): the
-# plugin, packed with tools/package.ps1, attached to a GitHub release for that tag. The generated
-# data and icons are committed, so this needs no copy of The Convergence.
+# Builds and publishes a release: the plugin, packed with tools/package.ps1, attached to a GitHub
+# release for its version tag. Runs when
+#   - cd.yml calls it: a minor or major version (X.Y.0) reached main and passed CI; or
+#   - a version tag is pushed by hand (git tag v1.1.1 && git push origin v1.1.1), e.g. for a patch.
+# The generated data is committed and the icons are made in game, so this needs no copy of The
+# Convergence.
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag to create and release, e.g. v1.1.0
+        required: true
+        type: string
+      sha:
+        description: The commit to release (the one CI tested)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,15 +26,20 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      SHA: ${{ inputs.sha || github.sha }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SHA }}
 
       - name: Tag matches the plugin version
         shell: pwsh
         run: |
           $v = (Select-String plugin/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-          if ("v$v" -ne "${{ github.ref_name }}") {
-            throw "Tag ${{ github.ref_name }} doesn't match version $v in plugin/Cargo.toml"
+          if ("v$v" -ne $env:TAG) {
+            throw "Tag $env:TAG doesn't match version $v in plugin/Cargo.toml"
           }
 
       - uses: dtolnay/rust-toolchain@stable
@@ -33,7 +51,10 @@ jobs:
         shell: pwsh
         run: ./tools/package.ps1
 
+      # Creates the tag on SHA when cd.yml called this (a tag pushed by hand already exists).
       - uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ env.SHA }}
           files: dist/*.zip
           generate_release_notes: true
