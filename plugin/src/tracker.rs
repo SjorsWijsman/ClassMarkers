@@ -1,12 +1,14 @@
 //! The class notes as progress trackers. Every note's description is rebuilt in one layout from
 //! generated::NOTE_TEXTS (Convergence's own entries, see tools/generate.py note_texts):
 //!
-//!     [icon] Nox Oracle   7 / 15 found                      (class colour)
-//!     The Nox Oracle primarily uses ...
+//! ```text
+//! [icon] Nox Oracle   7 / 15 found                      (class colour)
+//! The Nox Oracle primarily uses ...
 //!
-//!     Night spell runes   2 / 5                             (tan)
-//!     Shimmering Rune of Night - Raya Lucaria Crystal Tunnel (name in class colour)
-//!     Glowing Rune of Night - Mirage Rise                    (grey once found)
+//! Night spell runes   2 / 5                             (tan)
+//! Shimmering Rune of Night - Raya Lucaria Crystal Tunnel (name in class colour)
+//! Glowing Rune of Night - Mirage Rise                    (grey once found)
+//! ```
 //!
 //! An entry is found once all its items are obtained (classes.rs rule). The text lives in our copy
 //! of the description text (msg.rs), with room for its longest form; when your progress changes it
@@ -189,6 +191,7 @@ mod tests {
 
     /// Writes every note (nothing found) to CM_NOTES_OUT.
     #[test]
+    #[ignore = "needs real game files, see the CM_* variables above"]
     fn write_all_notes() {
         let Ok(out) = std::env::var("CM_NOTES_OUT") else { return };
         crate::notetext::tests::load_from_export();

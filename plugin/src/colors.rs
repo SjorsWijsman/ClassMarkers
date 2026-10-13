@@ -3,7 +3,9 @@
 //! brings its colour along. Used for the class names in item descriptions; the map icons' glow is
 //! baked in the same colour by tools/note_icons.py. Lines in ClassMarkers/icons/colors.txt override it:
 //!
-//!     Servant of Rot = #9BC25A
+//! ```text
+//! Servant of Rot = #9BC25A
+//! ```
 //!
 //! A class with neither keeps the default text colour.
 
@@ -121,6 +123,7 @@ fn rgb(h: f32, s: f32, v: f32) -> [f32; 3] {
 mod tests {
     /// Prints every class's colour: CM_ICON_DIR=<ClassMarkers folder>.
     #[test]
+    #[ignore = "needs real game files, see the CM_* variables above"]
     fn print_colours() {
         let Ok(dir) = std::env::var("CM_ICON_DIR") else { return };
         let mut c: Vec<_> = super::class_colors(std::path::Path::new(&dir)).into_iter().collect();

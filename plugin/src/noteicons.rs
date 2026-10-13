@@ -325,6 +325,7 @@ mod tests {
     /// Builds from real files: CM_ATLAS_SRC=<Convergence's menu\hi> CM_ATLAS_OUT=<folder>
     /// CM_ICONS=<icons\notes>.
     #[test]
+    #[ignore = "needs real game files, see the CM_* variables above"]
     fn build_from_real_files() {
         let (Ok(src), Ok(out), Ok(icons)) =
             (std::env::var("CM_ATLAS_SRC"), std::env::var("CM_ATLAS_OUT"), std::env::var("CM_ICONS"))

@@ -230,3 +230,54 @@ impl GenMarker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn i32_at(r: &[u8], at: usize) -> i32 {
+        i32::from_le_bytes(r[at..at + 4].try_into().unwrap())
+    }
+
+    fn row(lines: Vec<Line>) -> Row {
+        Row {
+            event_flag: ALWAYS_ON_FLAG,
+            icon: 371,
+            area: 60,
+            grid_x: 42,
+            grid_z: 36,
+            x: 1.5,
+            y: -2.0,
+            z: 3.25,
+            disp_mask: 1,
+            lines,
+        }
+    }
+
+    #[test]
+    fn encode_puts_fields_at_their_offsets() {
+        let r = row(vec![Line { text_id: 1000, text_type: 0 }, Line { text_id: 1_850_000_000, text_type: 1 }]).encode();
+        assert_eq!(i32_at(&r, EVENT_FLAG_OFFSET), ALWAYS_ON_FLAG as i32);
+        assert_eq!(u16::from_le_bytes([r[0x0C], r[0x0D]]), 371);
+        assert_eq!(r[0x10] & 0b100, 0, "has text, so not isEnableNoText");
+        assert_eq!((r[0x18], r[0x20], r[0x21], r[0x22]), (1, 60, 42, 36));
+        assert_eq!(f32::from_le_bytes(r[0x24..0x28].try_into().unwrap()), 1.5);
+        assert_eq!(f32::from_le_bytes(r[0x28..0x2C].try_into().unwrap()), -2.0);
+        assert_eq!(f32::from_le_bytes(r[0x2C..0x30].try_into().unwrap()), 3.25);
+        assert_eq!((i32_at(&r, 0x30), r[0x90]), (1000, 0));
+        assert_eq!((i32_at(&r, 0x3C), r[0x91]), (1_850_000_000, 1));
+        for k in 2..8 {
+            assert_eq!(i32_at(&r, 0x30 + 12 * k), -1, "unused text line {}", k);
+        }
+        for at in [0x98, 0xA8, 0xAC, 0xB0] {
+            assert_eq!(i32_at(&r, at), -1);
+        }
+        assert_eq!(r[0xB5], 1);
+    }
+
+    #[test]
+    fn encode_without_text_shows_icon_only() {
+        let r = row(vec![Line { text_id: -1, text_type: 0 }]).encode();
+        assert_eq!(r[0x10] & 0b100, 0b100);
+    }
+}

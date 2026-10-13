@@ -331,6 +331,7 @@ fn build(src: &[u8], icons: &[Vec<u8>]) -> Result<(Vec<u8>, u16), String> {
 mod tests {
     /// Builds our copy from a real movie: CM_GFX_SRC=<Convergence's file> CM_GFX_OUT=<output>.
     #[test]
+    #[ignore = "needs real game files, see the CM_* variables above"]
     fn build_from_real_movie() {
         let (Ok(src), Ok(out)) = (std::env::var("CM_GFX_SRC"), std::env::var("CM_GFX_OUT")) else {
             return;

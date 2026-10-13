@@ -52,10 +52,9 @@ impl Owned {
                 let category = match e.item_id.category() {
                     ItemCategory::Goods => 1,
                     ItemCategory::Weapon => {
-                        // A weapon id is base + affinity * 100 + upgrade level: an upgraded copy
-                        // counts as the weapon with that affinity, and as the plain weapon.
-                        items.insert((2, id - id % 100));
-                        items.insert((2, id - id % 10000));
+                        for w in weapon_ids(id) {
+                            items.insert((2, w));
+                        }
                         continue;
                     }
                     ItemCategory::Protector => 3,
@@ -82,6 +81,12 @@ impl Owned {
     fn notes(&self) -> BTreeSet<u32> {
         NOTES.iter().map(|n| n.goods_id).filter(|&id| self.carried.contains(&(1, id))).collect()
     }
+}
+
+/// The weapon ids an owned weapon counts as. A weapon id is base + affinity * 100 + upgrade level:
+/// an upgraded copy counts as the weapon with that affinity, and as the plain weapon.
+fn weapon_ids(id: u32) -> [u32; 2] {
+    [id - id % 100, id - id % 10000]
 }
 
 /// The class notes whose pickup flags are on (fallback).
@@ -164,4 +169,35 @@ pub fn watch(rows: Vec<Watched>) {
     );
     // The task runs for as long as its handle lives: keep it for the rest of the game.
     std::mem::forget(handle);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upgraded_weapon_counts_as_affinity_and_plain() {
+        // Heavy (affinity 1) +7 of weapon 2_000_000.
+        assert_eq!(weapon_ids(2_000_107), [2_000_100, 2_000_000]);
+        assert_eq!(weapon_ids(2_000_000), [2_000_000, 2_000_000]);
+    }
+
+    #[test]
+    fn obtained_by_pickup_flag_or_ownership() {
+        let owned = Owned { carried: HashSet::new(), items: [(3, 40_000)].into() };
+        let armor = Item { category: 3, id: 40_000, flag: 0 };
+        let other = Item { category: 3, id: 40_100, flag: 0 };
+        assert!(obtained(&armor, Some(&owned), None));
+        assert!(!obtained(&other, Some(&owned), None));
+        assert!(!obtained(&armor, None, None));
+    }
+
+    #[test]
+    fn only_carried_notes_count() {
+        let note = NOTES[0].goods_id;
+        let in_chest = Owned { carried: HashSet::new(), items: [(1, note)].into() };
+        assert!(in_chest.notes().is_empty());
+        let carried = Owned { carried: [(1, note)].into(), items: [(1, note)].into() };
+        assert_eq!(carried.notes(), [note].into());
+    }
 }

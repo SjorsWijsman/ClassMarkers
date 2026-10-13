@@ -156,19 +156,34 @@ unsafe fn read_fmg(fmg: *const u8) -> Vec<(i32, Vec<u16>)> {
 
 /// Build a new FMG holding `original`'s entries plus `ours` (ours win on equal ids).
 unsafe fn build_fmg(original: *const u8, ours: &[(i32, Vec<u16>)]) -> Result<*mut u8, String> {
-    let mut entries = read_fmg(original);
+    let entries = merge_entries(read_fmg(original), ours);
+    let size = fmg_size(&entries);
+    let f = alloc_like(original, size)?;
+    write_fmg(f, &entries, size);
+    Ok(f)
+}
+
+/// `entries` plus `ours` (ours win on equal ids), sorted by id.
+fn merge_entries(mut entries: Vec<(i32, Vec<u16>)>, ours: &[(i32, Vec<u16>)]) -> Vec<(i32, Vec<u16>)> {
     let our_ids: std::collections::HashSet<i32> = ours.iter().map(|(id, _)| *id).collect();
     entries.retain(|(id, _)| !our_ids.contains(id));
     entries.extend(ours.iter().cloned());
     entries.sort_by_key(|(id, _)| *id);
+    entries
+}
 
+/// Bytes an FMG with `entries` takes (write_fmg's layout).
+fn fmg_size(entries: &[(i32, Vec<u16>)]) -> usize {
+    let n = entries.len();
+    0x28 + n * 16 + n * 8 + entries.iter().map(|(_, t)| (t.len() + 1) * 2).sum::<usize>()
+}
+
+/// Write an FMG holding `entries` (sorted by id) into `f`: `size` zeroed bytes (fmg_size).
+unsafe fn write_fmg(f: *mut u8, entries: &[(i32, Vec<u16>)], size: usize) {
     let n = entries.len();
     let groups_at = 0x28;
     let offsets_at = groups_at + n * 16;
     let strings_at = offsets_at + n * 8;
-    let size = strings_at + entries.iter().map(|(_, t)| (t.len() + 1) * 2).sum::<usize>();
-
-    let f = alloc_like(original, size)?;
     wr(f, 0x0002_0000u32); // version 2
     wr(f.add(0x04), size as u32);
     wr(f.add(0x08), 1u32);
@@ -186,7 +201,6 @@ unsafe fn build_fmg(original: *const u8, ours: &[(i32, Vec<u16>)]) -> Result<*mu
         std::ptr::copy_nonoverlapping(text.as_ptr() as *const u8, f.add(at), text.len() * 2);
         at += (text.len() + 1) * 2; // the buffer is zeroed, so the terminator is already there
     }
-    Ok(f)
 }
 
 /// Where string `id` of an in-memory FMG is, if it has one.
@@ -359,4 +373,33 @@ pub fn add_class_lines(captions: &'static [(u8, u32, &'static [u32])]) -> Result
         }
     }
     Ok(done)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn w(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+
+    #[test]
+    fn fmg_round_trip_keeps_entries_and_ours_win() {
+        let original = vec![(5, w("five")), (10, w("ten")), (2, w(""))];
+        let ours = vec![(10, w("our ten")), (FIRST_TEXT_ID, w("label"))];
+        let entries = merge_entries(original, &ours);
+        let size = fmg_size(&entries);
+        let mut buf = vec![0u8; size];
+        let back = unsafe {
+            write_fmg(buf.as_mut_ptr(), &entries, size);
+            read_fmg(buf.as_ptr())
+        };
+        assert_eq!(back, vec![(2, w("")), (5, w("five")), (10, w("our ten")), (FIRST_TEXT_ID, w("label"))]);
+        unsafe {
+            assert_eq!(rd::<u32>(buf.as_ptr()), 0x0002_0000);
+            assert_eq!(rd::<u32>(buf.as_ptr().add(4)) as usize, size);
+            assert!(fmg_string(buf.as_ptr(), 7).is_none());
+            assert!(fmg_string(buf.as_ptr(), 5).is_some());
+        }
+    }
 }
