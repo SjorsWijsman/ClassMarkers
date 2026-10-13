@@ -95,14 +95,15 @@ pub type OodleDecompress = unsafe extern "C" fn(
 pub fn oodle(load: bool) -> Option<OodleDecompress> {
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress, LoadLibraryA};
     unsafe {
-        let mut module = GetModuleHandleA(b"oo2core_6_win64.dll\0".as_ptr());
+        let dll = c"oo2core_6_win64.dll".as_ptr() as *const u8;
+        let mut module = GetModuleHandleA(dll);
         if module.is_null() && load {
-            module = LoadLibraryA(b"oo2core_6_win64.dll\0".as_ptr());
+            module = LoadLibraryA(dll);
         }
         if module.is_null() {
             return None;
         }
-        let f = GetProcAddress(module, b"OodleLZ_Decompress\0".as_ptr())?;
+        let f = GetProcAddress(module, c"OodleLZ_Decompress".as_ptr() as *const u8)?;
         Some(std::mem::transmute::<unsafe extern "system" fn() -> isize, OodleDecompress>(f))
     }
 }
