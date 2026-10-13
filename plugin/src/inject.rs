@@ -194,13 +194,6 @@ pub fn inject(markers: Vec<(i32, Row, String)>) -> Result<Vec<Option<usize>>, St
         *file_size_ref = file_size as u64;
         log!("WorldMapPointParam now has {} rows", total);
 
-        // Confirm a minute later that the game is still using our table.
-        let (slot, ours_ptr) = (file_ptr_ref as usize, new as usize);
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_secs(60));
-            let still_ours = *(slot as *const usize) == ours_ptr;
-            log!("After 1 min: {}", if still_ours { "markers still in place" } else { "the marker table was REPLACED by the game or another mod" });
-        });
         let index: std::collections::HashMap<i32, usize> =
             rows.iter().enumerate().map(|(i, (id, _))| (*id, i)).collect();
         Ok(ids.iter().map(|id| id.map(|id| new.add(data_start + index[&id] * ROW_SIZE) as usize)).collect())
