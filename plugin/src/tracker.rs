@@ -72,6 +72,8 @@ struct State {
     colours: HashMap<&'static str, String>,
     /// Current text and its room (UTF-16 units), by note.
     texts: HashMap<u32, (Vec<u16>, usize)>,
+    /// Which entries were found when the text was last built, by note (none yet = not built).
+    found: HashMap<u32, Vec<bool>>,
     places: Vec<Place>,
 }
 
@@ -136,7 +138,7 @@ pub fn init(colours: HashMap<&'static str, String>) {
         let room = none.len().max(all) + SPARE;
         texts.insert(t.note, (none, room));
     }
-    let _ = STATE.set(Mutex::new(State { colours, texts, places: Vec::new() }));
+    let _ = STATE.set(Mutex::new(State { colours, texts, found: HashMap::new(), places: Vec::new() }));
 }
 
 /// Whether `id` is a note we rewrite.
@@ -166,6 +168,12 @@ pub fn update(obtained: &dyn Fn(&Item) -> bool) {
     let mut state = state.lock().unwrap();
     let found = |e: &NoteEntry| !e.items.is_empty() && e.items.iter().all(obtained);
     for t in NOTE_TEXTS {
+        // Only rebuild a note's text when one of its entries was found or lost.
+        let now: Vec<bool> = t.sections.iter().flat_map(|s| s.entries).map(found).collect();
+        if state.found.get(&t.note) == Some(&now) {
+            continue;
+        }
+        state.found.insert(t.note, now);
         let text: Vec<u16> = build(t, &state.colours, &found).encode_utf16().collect();
         let Some((current, room)) = state.texts.get_mut(&t.note) else { continue };
         if *current == text || text.len() >= *room {

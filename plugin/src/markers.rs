@@ -23,8 +23,9 @@ const HINT_CHARS: usize = 40;
 /// Start of a wrapped hint line, to line up under the text after the first line's icon.
 const HINT_INDENT: &str = "     ";
 
-/// A class note (see tools/generate.py). You own it once any of `flags` is on: they are set when
-/// one of the item lots that hand out the note is picked up.
+/// A class note (see tools/generate.py). You own it while it is in your inventory (classes.rs);
+/// `flags`, set when one of the item lots that hand out the note is picked up, are the fallback
+/// when the inventory can't be read.
 pub struct Note {
     pub goods_id: u32,
     pub class: &'static str,

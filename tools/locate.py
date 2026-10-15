@@ -557,7 +557,9 @@ def locate_all(classes, only=None):
             how = ("unresolved-name" if not ids else
                    "exact" if hows & set(PLACED) else
                    "boss-marker" if "boss-marker" in hows else
-                   "place-name" if "place-name" in hows else "no-position")
+                   "place-name" if "place-name" in hows else
+                   "npc-marker" if "npc-marker" in hows else
+                   "map-area" if "map-area" in hows else "no-position")
             report.append({"class": c["name"], "kind": kind, "name": name, "loc": loc, "status": how, "results": res})
     json.dump(report, open(f"{common.CACHE}/locate_report.json", "w", encoding="utf-8"),
               ensure_ascii=False, indent=1, default=list)

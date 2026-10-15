@@ -10,7 +10,8 @@ pub const PLACE_NAME_SLOT: usize = 19;
 pub const CAPTION_SLOTS: [(u8, [usize; 3]); 4] = [(1, [24, 321, 421]), (2, [25, 312, 412]), (3, [26, 315, 415]), (4, [27, 318, 418])];
 pub const NAME_SLOTS: [(u8, [usize; 3]); 4] = [(1, [10, 319, 419]), (2, [11, 310, 410]), (3, [12, 313, 413]), (4, [13, 316, 416])];
 
-/// Every class note, with the event flags its pickups set (owning the note = any flag on).
+/// Every class note, with the event flags its pickups set (whether you own it when the
+/// inventory can't be read, see classes.rs).
 pub const NOTES: &[Note] = &[
     Note { goods_id: 8800, class: "Retainer", which: "path", flags: &[1041367900], icon: 45521 },
     Note { goods_id: 8870, class: "Retainer", which: "weapons", flags: &[1041367900], icon: 45522 },

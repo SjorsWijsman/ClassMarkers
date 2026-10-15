@@ -175,7 +175,7 @@ def _resolve_set(name):
     return [], "none"
 
 
-def _resolve_from_siblings(name, siblings, cats):
+def _resolve_from_siblings(siblings):
     """An armor piece the note names wrongly ("High Page Garb") inside a group listing the rest of
     its set piece by piece: the set is the siblings' armor id block, and the piece is the one in
     that block no sibling has claimed ("High Page Clothes")."""
@@ -187,7 +187,7 @@ def _resolve_from_siblings(name, siblings, cats):
             blocks.add(i - i % 1000)
     if len(blocks) != 1:
         return []
-    left = [p for p in _armor_block(blocks.pop() + 0) if p[1] not in claimed]
+    left = [p for p in _armor_block(blocks.pop()) if p[1] not in claimed]
     return left if len(left) == 1 else []
 
 
@@ -213,7 +213,7 @@ def resolve(kind, name, siblings=()):
             return MatchResult(items, how)
 
     if kind == "armor" and siblings:
-        items = _resolve_from_siblings(name, siblings, cats)
+        items = _resolve_from_siblings(siblings)
         if items:
             return MatchResult(items, "rest of its set")
 
