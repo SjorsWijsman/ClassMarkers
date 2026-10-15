@@ -246,18 +246,20 @@ mod tests {
         std::fs::write(out, all).unwrap();
     }
 
-    /// Prints two notes with every other entry found.
+    /// Every note's title counts what's found, and with only some entries found it still fits the
+    /// room init gives it (the longer of nothing and all found, plus SPARE).
     #[test]
-    fn print_notes() {
+    fn counts_found_and_fits_its_room() {
         let colours: HashMap<&'static str, String> = [("Nox Oracle", "#667DE4".to_string())].into();
-        let mut k = 0;
-        let found = |_: &NoteEntry| {
-            k += 1;
-            k % 2 == 0
-        };
-        let found = std::cell::RefCell::new(found);
-        for t in NOTE_TEXTS.iter().filter(|t| t.note == 8812 || t.note == 8800) {
-            println!("----- {}\n{}\n", t.note, super::build(t, &colours, &|e| (found.borrow_mut())(e)));
+        for t in NOTE_TEXTS {
+            let total: usize = t.sections.iter().map(|s| s.entries.len()).sum();
+            let none = build(t, &colours, &|_| false);
+            let all = build(t, &colours, &|_| true);
+            assert!(none.contains(&format!(" 0 / {} found", total)), "note {}", t.note);
+            assert!(all.contains(&format!(" {} / {} found", total, total)), "note {}", t.note);
+            let room = none.encode_utf16().count().max(all.encode_utf16().count()) + SPARE;
+            let some = build(t, &colours, &|e| e.line % 2 == 0);
+            assert!(some.encode_utf16().count() < room, "note {}", t.note);
         }
     }
 }

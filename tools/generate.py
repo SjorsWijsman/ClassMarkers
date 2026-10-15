@@ -511,8 +511,9 @@ def goods_captions():
 
 def note_lines(note):
     """A class note's entry lines in order, split exactly as the plugin splits the note's text at
-    startup (plugin/src/notetext.rs): font tags removed, lines holding " - " are (name, location)."""
-    text = re.sub(r"</?font[^>]*>", "", goods_captions().get(note, ""))
+    startup (plugin/src/notetext.rs): tags removed, lines holding " - " are (name, location)."""
+    from build_data import strip
+    text = strip(goods_captions().get(note, ""))
     out = []
     for line in text.split("\n"):
         line = line.strip()

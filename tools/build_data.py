@@ -10,8 +10,8 @@ WEAPONS_PREFIX = "Note: Weapons for "
 
 
 def strip(s):
-    """Text without its <font> tags."""
-    return re.sub(r'</?font[^>]*>', '', s or '')
+    """Text without its tags (<font> and any other), as the plugin strips it (notetext.rs)."""
+    return re.sub(r'<[^>]*>', '', s or '')
 
 
 def items(lines):
