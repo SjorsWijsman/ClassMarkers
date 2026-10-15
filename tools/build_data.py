@@ -5,8 +5,8 @@ import re
 
 import common
 
-PATH_NOTES = range(8800, 8827)   # "Note: Path of the <class>" goods ids
-WEAPONS_OFFSET = 70              # its "Note: Weapons for <class>" is the path note's id + 70
+PATH_PREFIX = "Note: Path of the "     # the class notes' names, which find them
+WEAPONS_PREFIX = "Note: Weapons for "
 
 
 def strip(s):
@@ -31,9 +31,12 @@ def items(lines):
 def build_classes():
     names = json.load(open(os.path.join(common.ITEM_DIR, 'GoodsName.fmg.json'), encoding='utf-8'))
     captions = json.load(open(os.path.join(common.ITEM_DIR, 'GoodsCaption.fmg.json'), encoding='utf-8'))
+    # By name, so a class Convergence adds is picked up: path notes in id order, and each class's
+    # weapons note (not every class has one).
+    path_notes = sorted((int(k), v[len(PATH_PREFIX):]) for k, v in names.items() if v and v.startswith(PATH_PREFIX))
+    weapons_notes = {v[len(WEAPONS_PREFIX):]: int(k) for k, v in names.items() if v and v.startswith(WEAPONS_PREFIX)}
     out = []
-    for path_id in PATH_NOTES:
-        cls = names[str(path_id)].replace('Note: Path of the ', '')
+    for path_id, cls in path_notes:
         c = {'id': re.sub(r'[^a-z]+', '-', cls.lower()).strip('-'), 'name': cls, 'pathId': path_id,
              'summary': None, 'school': None, 'runes': [], 'armor': [], 'weapons': [], 'weaponsId': None}
         section = None
@@ -55,11 +58,11 @@ def build_classes():
         c['runes'] = [x for g in items(lines['runes']) for x in g]
         c['armor'] = items(lines['armor'])
 
-        weapons_id = str(path_id + WEAPONS_OFFSET)
-        if 'Weapons for' in names.get(weapons_id, ''):
-            c['weaponsId'] = int(weapons_id)
+        weapons_id = weapons_notes.get(cls)
+        if weapons_id:
+            c['weaponsId'] = weapons_id
             weapon_lines = []
-            for line in strip(captions.get(weapons_id)).split('\n'):
+            for line in strip(captions.get(str(weapons_id))).split('\n'):
                 s = line.strip()
                 if s.startswith('The notable weapons'):
                     continue

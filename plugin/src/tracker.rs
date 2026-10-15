@@ -66,12 +66,20 @@ struct Place {
     slot: usize,
     ours: Arc<AtomicUsize>,
     notes: Vec<u32>,
+    /// By note: the copy we last wrote its text into, and that text's version.
+    written: HashMap<u32, (usize, u32)>,
+}
+
+/// A note's current text, its room (UTF-16 units) and version (counts its rebuilds).
+struct Text {
+    units: Vec<u16>,
+    room: usize,
+    version: u32,
 }
 
 struct State {
     colours: HashMap<&'static str, String>,
-    /// Current text and its room (UTF-16 units), by note.
-    texts: HashMap<u32, (Vec<u16>, usize)>,
+    texts: HashMap<u32, Text>,
     /// Which entries were found when the text was last built, by note (none yet = not built).
     found: HashMap<u32, Vec<bool>>,
     places: Vec<Place>,
@@ -136,7 +144,7 @@ pub fn init(colours: HashMap<&'static str, String>) {
         let none: Vec<u16> = build(t, &colours, &|_| false).encode_utf16().collect();
         let all = build(t, &colours, &|_| true).encode_utf16().count();
         let room = none.len().max(all) + SPARE;
-        texts.insert(t.note, (none, room));
+        texts.insert(t.note, Text { units: none, room, version: 0 });
     }
     let _ = STATE.set(Mutex::new(State { colours, texts, found: HashMap::new(), places: Vec::new() }));
 }
@@ -149,51 +157,64 @@ pub fn is_note(id: i32) -> bool {
 /// A note's current text, padded with terminators to its room (what our text file copy holds).
 pub fn padded(id: i32) -> Option<Vec<u16>> {
     let state = STATE.get()?.lock().unwrap();
-    let (text, room) = state.texts.get(&(id as u32))?;
-    let mut out = text.clone();
-    out.resize(*room, 0);
+    let text = state.texts.get(&(id as u32))?;
+    let mut out = text.units.clone();
+    out.resize(text.room, 0);
     Some(out)
 }
 
 /// Our copy of text file `slot`, kept current in `ours`, holds `notes`.
 pub fn register(slot: *mut *mut u8, ours: Arc<AtomicUsize>, notes: Vec<u32>) {
     if let Some(s) = STATE.get() {
-        s.lock().unwrap().places.push(Place { slot: slot as usize, ours, notes });
+        s.lock().unwrap().places.push(Place { slot: slot as usize, ours, notes, written: HashMap::new() });
     }
 }
 
-/// Rewrite the notes whose progress changed. `obtained`: the classes.rs rule for one item.
+/// Rebuild the notes whose progress changed, and write every note into each copy of ours that
+/// doesn't hold its current text yet: a copy made (or remade after the game reloaded its text)
+/// while a rebuild happened can hold an older one. `obtained`: the classes.rs rule for one item.
 pub fn update(obtained: &dyn Fn(&Item) -> bool) {
     let Some(state) = STATE.get() else { return };
     let mut state = state.lock().unwrap();
+    let State { colours, texts, found: built, places } = &mut *state;
     let found = |e: &NoteEntry| !e.items.is_empty() && e.items.iter().all(obtained);
     for t in NOTE_TEXTS {
         // Only rebuild a note's text when one of its entries was found or lost.
         let now: Vec<bool> = t.sections.iter().flat_map(|s| s.entries).map(found).collect();
-        if state.found.get(&t.note) == Some(&now) {
+        if built.get(&t.note) == Some(&now) {
             continue;
         }
-        state.found.insert(t.note, now);
-        let text: Vec<u16> = build(t, &state.colours, &found).encode_utf16().collect();
-        let Some((current, room)) = state.texts.get_mut(&t.note) else { continue };
-        if *current == text || text.len() >= *room {
+        built.insert(t.note, now);
+        let units: Vec<u16> = build(t, colours, &found).encode_utf16().collect();
+        let Some(text) = texts.get_mut(&t.note) else { continue };
+        if units.len() >= text.room {
+            crate::log!("Class notes: note {}'s text outgrew its room; not updated", t.note);
             continue;
         }
-        *current = text.clone();
-        let room = *room;
-        for p in state.places.iter().filter(|p| p.notes.contains(&t.note)) {
-            // Only into our own copy: right after the game reloads its text, the slot briefly
-            // holds the game's (patch_and_watch puts ours back with the current text).
-            let fmg = unsafe { *(p.slot as *const usize) };
-            if fmg == 0 || fmg != p.ours.load(Ordering::Relaxed) {
+        if text.units != units {
+            text.units = units;
+            text.version += 1;
+        }
+    }
+    for p in places.iter_mut() {
+        // Only into our own copy: right after the game reloads its text, the slot briefly holds
+        // the game's (patch_and_watch puts ours back, and the next update writes into it).
+        let fmg = unsafe { *(p.slot as *const usize) };
+        if fmg == 0 || fmg != p.ours.load(Ordering::Relaxed) {
+            continue;
+        }
+        for &note in &p.notes {
+            let Some(text) = texts.get(&note) else { continue };
+            if p.written.get(&note) == Some(&(fmg, text.version)) {
                 continue;
             }
-            if let Some(at) = unsafe { fmg_string(fmg as *const u8, t.note as i32) } {
+            if let Some(at) = unsafe { fmg_string(fmg as *const u8, note as i32) } {
                 unsafe {
-                    std::ptr::copy_nonoverlapping(text.as_ptr(), at, text.len());
-                    std::ptr::write_bytes(at.add(text.len()), 0, room - text.len());
+                    std::ptr::copy_nonoverlapping(text.units.as_ptr(), at, text.units.len());
+                    std::ptr::write_bytes(at.add(text.units.len()), 0, text.room - text.units.len());
                 }
             }
+            p.written.insert(note, (fmg, text.version));
         }
     }
 }
