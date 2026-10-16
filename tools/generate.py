@@ -11,6 +11,7 @@
 5. Writes matching_report.md and matching_review.md (not in git: they quote Convergence's notes).
 """
 import json
+import math
 import re
 import os
 import struct
@@ -279,6 +280,61 @@ def build_markers(classes, report, placer):
         if item not in first["items"]:
             first["items"].append(item)
     return unique, unplaced
+
+
+NUDGE_M = 25   # a marker this close to another icon is moved this far away from it
+
+
+def map_icons():
+    """[(frame, x, z)] of every icon the map already draws: Convergence's and the game's map
+    points (not the region labels) and the graces. See map_frame."""
+    from param import rows
+    import locate
+    out = []
+    for p, icon_at in (("WorldMapPointParam", 0x0C), ("BonfireWarpParam", 0x18)):
+        r, _ = rows(os.path.join(common.REG_DIR, p + ".param"))
+        for b in r.values():
+            if struct.unpack_from("<H", b, icon_at)[0] in (0, locate.REGION_LABEL_ICON):
+                continue
+            x, _, z = struct.unpack_from("<3f", b, 0x24)
+            out.append(map_frame(b[0x20], b[0x21], b[0x22], x, z))
+    return out
+
+
+def map_frame(area, gx, gz, x, z):
+    """A map point as (frame, x, z) in metres, comparable within a frame: the overworlds in world
+    coordinates (256 m tiles), any other map in its own coordinates."""
+    if area in OVERWORLD_AREAS:
+        return (area,), gx * 256 + x, gz * 256 + z
+    return (area, gx, gz), x, z
+
+
+def nudge(markers):
+    """Move markers off the icons they would hide behind or cover: one on (within NUDGE_M of) a
+    map icon or a marker placed before it moves NUDGE_M away, to the first free spot going round
+    from east, then two and three times as far if all are taken. A marker placed on a dungeon entrance or
+    a boss sits right on that icon, so it ends up next to it."""
+    taken = defaultdict(list)
+    for f, x, z in map_icons():
+        taken[f].append((x, z))
+    free = lambda f, x, z: all((x - a) ** 2 + (z - b) ** 2 >= (NUDGE_M - 0.01) ** 2 for a, b in taken[f])
+    moved = 0
+    for m in markers:
+        f, x, z = map_frame(m["area"], m["gx"], m["gz"], m["x"], m["z"])
+        if not free(f, x, z):
+            for ring in (1, 2, 3):
+                spots = [(x + ring * NUDGE_M * math.cos(math.radians(a)), z + ring * NUDGE_M * math.sin(math.radians(a)))
+                         for a in range(0, 360, 45)]
+                spot = next(((sx, sz) for sx, sz in spots if free(f, sx, sz)), None)
+                if spot:
+                    m["x"] += spot[0] - x
+                    m["z"] += spot[1] - z
+                    x, z = spot
+                    m["src"] += ", nudged"
+                    moved += 1
+                    break
+        taken[f].append((x, z))
+    return moved
 
 
 def note_flags(classes):
@@ -741,6 +797,7 @@ def main():
     report = locate.locate_all(classes)
     placer = Placer(world_map_rows())
     markers, unplaced = build_markers(classes, report, placer)
+    print(f"{nudge(markers)} markers moved off other map icons")
     write_rust(classes, markers, placer, report)
     write_matching_report(classes, markers, unplaced)
     by_class = Counter(m["cls"] for m in markers)

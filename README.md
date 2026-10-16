@@ -139,7 +139,9 @@ GitHub runs these on every push (`.github/workflows/ci.yml`); run them locally b
   files, or the boss/NPC whose defeat awards the lot (event scripts). Items in caves, catacombs,
   tunnels and gaols go on the dungeon's entrance icon. Without an exact spot: an NPC the note names
   that has a map marker ("Given by Gowry" → Gowry), else the map the lot belongs to, on a boss
-  marker there the note names, the dungeon's entrance, a landmark or the tile's middle.
+  marker there the note names, the dungeon's entrance, a landmark or the tile's middle. A marker
+  within 25 m of another map icon (a grace, an entrance, a boss, another marker) is moved 25 m
+  aside, so neither hides the other.
 - **Markers** are rows added to `WorldMapPointParam` in memory at startup (found through
   fromsoftware-rs). The world map only draws
   a row whose **id encodes its map block** (`AABBnn` for dungeon map `mAA_BB`, `PPGGZZnn` for world
