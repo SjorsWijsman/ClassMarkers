@@ -440,15 +440,19 @@ def locate_shop(cat, item_id):
 # ---- resolution -------------------------------------------------------------
 def _from_events(lot, flag):
     """Where an event script hands out `lot`: 2. tied to an entity in a map, else 3. when a flag
-    turns on (a boss or NPC defeated). None if neither."""
-    for script, line, nums in lot_in_events(lot):
+    turns on (a boss or NPC defeated). None if neither. A lot id can also be some other number
+    in a script (Impaler's Catacombs' rune lot 20010 is an animation in Stormveil's), so when
+    some line also names the lot's own pickup flag, only those lines count."""
+    lines = lot_in_events(lot)
+    lines = [x for x in lines if flag in x[2]] or lines
+    for script, line, nums in lines:
         for n in nums:
             for m in maps_for_entity(n, script):
                 ms = msb(m)
                 if ms and n in ms["entity"]:
                     p = ms["entity"][n]
                     return {"how": "event", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag}
-    for script, line, nums in lot_in_events(lot):
+    for script, line, nums in lines:
         for n in nums:
             if n == lot:
                 continue
