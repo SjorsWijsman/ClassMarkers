@@ -58,6 +58,26 @@ def world_map_rows():
     return r
 
 
+def dungeon_graces():
+    """Dungeons' Sites of Grace (BonfireWarpParam): {(AA, BB): {"disp_mask", "text_id"}} for map
+    mAA_BB, from the graces' entity ids. Says which world map (dispMask at +0x1E: 1 base game,
+    4 DLC) a dungeon without map icons of its own goes with (Convergence's Raya Crystalia, m31_83,
+    is on the DLC map), and its name when all its graces share one (-1 otherwise: Leyndell's
+    graces name rooms, not the place)."""
+    from param import rows
+    r, _ = rows(os.path.join(common.REG_DIR, "BonfireWarpParam.param"))
+    masks, names = {}, defaultdict(set)
+    for rid in sorted(r):
+        b = r[rid]
+        s = str(struct.unpack_from("<I", b, 0x08)[0])
+        if len(s) == 8 and s[:2] not in ("60", "61"):
+            key = (int(s[:2]), int(s[2:4]))
+            masks.setdefault(key, b[0x1E])
+            names[key].add(struct.unpack_from("<i", b, 0x30)[0])
+    return {k: {"disp_mask": m, "text_id": next(iter(names[k])) if len(names[k]) == 1 else -1}
+            for k, m in masks.items()}
+
+
 def row_info(rid, b):
     return {
         "id": rid,
@@ -95,10 +115,13 @@ class Placer:
     PP GG ZZ NN for world-map tiles. Verified in-game with test build 0.1.6.
     """
 
-    def __init__(self, wmp, place_names=None):
+    def __init__(self, wmp, place_names=None, graces=None, conv=None):
         """`wmp`: WorldMapPointParam rows (id -> bytes); `place_names`: PlaceName text id -> text
-        (default: Convergence's, from the cache)."""
+        (default: Convergence's, from the cache); `graces`: dungeon_graces(); `conv`:
+        where.load_conversions()."""
         self.rows = {rid: row_info(rid, b) for rid, b in wmp.items()}
+        self.graces = graces or {}
+        self.conv = conv or {}
         self.by_block = defaultdict(list)
         for rid, info in self.rows.items():
             self.by_block[rid // 100].append(info)
@@ -154,11 +177,30 @@ class Placer:
         masks = Counter(i["disp_mask"] for i in self.by_block.get(aa * 100 + bb, []))
         if masks:
             return masks.most_common(1)[0][0]
+        if (aa, bb) in self.graces:
+            return self.graces[(aa, bb)]["disp_mask"]
         return 2 if aa == 12 else 4 if (20 <= aa <= 28 or 40 <= aa <= 43 or aa in (17, 61)) else 1
+
+    def host_map(self, mapname, pos):
+        """A map with nothing of its own on the world map (no icons, no grace, no conversion):
+        the map that converts into it, and the position there (the Regal Ancestor Spirit's arena
+        m12_09 shares Nokron's m12_02 coordinates). None if there's none."""
+        aa, bb = int(mapname[1:3]), int(mapname[4:6])
+        if self.by_block.get(aa * 100 + bb) or (aa, bb) in self.graces or mapname[:6] in self.conv:
+            return None
+        pairs = [(src, here, there) for src, ps in self.conv.items() for here, dst, there in ps
+                 if dst[:6] == mapname[:6]]
+        if not pairs:
+            return None
+        src, here, there = min(pairs, key=lambda t: sum((a - b) ** 2 for a, b in zip(t[2], pos)))
+        return f"{src}_00_00", tuple(p - t + h for p, t, h in zip(pos, there, here))
 
     def place(self, mapname, pos):
         mapname, pos = small_tile(mapname, pos)
         aa, bb, cc = int(mapname[1:3]), int(mapname[4:6]), int(mapname[7:9])
+        host = None if aa in OVERWORLD_AREAS else self.host_map(mapname, pos)
+        if host:
+            return self.place(*host)
         if aa in OVERWORLD_AREAS:
             pp = self.prefix_for_tile(aa, bb, cc)
             return dict(block=pp * 10000 + bb * 100 + cc, area=aa, gx=bb, gz=cc,
@@ -172,6 +214,8 @@ class Placer:
                             text_id=e["text_id"], how="entrance")
         e = self.entrance_row(aa, bb)
         text_id = e["text_id"] if e else self.nearest_place_name(aa, bb, 0, pos[0], pos[2])
+        if text_id == -1 and (aa, bb) in self.graces:
+            text_id = self.graces[(aa, bb)]["text_id"]
         return dict(block=aa * 100 + bb, area=aa, gx=bb, gz=0, x=pos[0], y=pos[1], z=pos[2],
                     disp_mask=self.disp_mask_for_area(aa, bb), text_id=text_id, how="exact-dungeon")
 
@@ -795,7 +839,8 @@ def main():
     classes = build_classes()
     import locate
     report = locate.locate_all(classes)
-    placer = Placer(world_map_rows())
+    import where
+    placer = Placer(world_map_rows(), graces=dungeon_graces(), conv=where.load_conversions())
     markers, unplaced = build_markers(classes, report, placer)
     print(f"{nudge(markers)} markers moved off other map icons")
     write_rust(classes, markers, placer, report)
@@ -806,6 +851,10 @@ def main():
     json.dump([{k: e[k] for k in ("class", "kind", "name", "loc", "status")} for e in unplaced],
               open(os.path.join(common.CACHE, "unplaced.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
+    import where
+    far = [e for e in where.check_all(where.Places(where.load_places(), where.load_conversions()), report)
+           if e["verdict"] == "far"]
+    print(f"{len(far)} items were found away from the place their note names (python tools/where.py --check)")
 
 
 if __name__ == "__main__":

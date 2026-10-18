@@ -1,6 +1,7 @@
-"""Resolve every class-note item to map positions, using only the mod's own files."""
+"""Resolve every class-note item to map positions, from the mod's own files (plus BASE_GAME_DROPS,
+a short hand-made list of drops whose event scripts are the base game's)."""
 import glob, json, os, re, struct, sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import common
 from dump_fmg import dcx
@@ -150,7 +151,7 @@ del _npc_rows
 MAX_ENEMY_SPOTS = 3
 
 # Result kinds that carry a map position.
-PLACED = ("pickup", "event", "defeat", "enemy", "shop-unlock", "merchant")
+PLACED = ("pickup", "event", "defeat", "enemy", "shop-unlock", "merchant", "npc")
 
 
 def map_for_id(n):
@@ -171,14 +172,76 @@ EMEVD = {os.path.basename(f).split(".")[0]: open(f, encoding="utf-8", errors="re
 
 
 import functools
+# Drops awarded by base-game event scripts that Convergence doesn't change, so they aren't in
+# mod/event: lot -> (map, the enemy's entity id). Found with tools/where.py; keep this short.
+BASE_GAME_DROPS = {
+    1042510900: ("m60_42_51_00", 1042510300),   # Valiant Gargoyle on the Altus Plateau (c4770, NpcParam 47700033)
+    30385: ("m60_38_52_00", 1038520340),        # Tibia Mariner at Wyndham Ruins, the only one in Altus (c4950)
+    30515: ("m60_53_56_00", 1053560800),        # Roundtable Knight Vyke, Lord Contender's Evergaol
+    1047560700: ("m60_47_56_00", 1047560180),   # Sanguine Noble invader, Consecrated Snowfield (only NPC in the tile)
+}
+
+# Commands that hand out an item lot; Unknown200476(boss entity, lot) ties a boss to its drop.
+AWARD = re.compile(r"\b(?:AwardItemLot|AwardItemsIncludingClients|Unknown200476)\(")
+_INIT = re.compile(r"\$?Initialize(Common)?Event\(\s*[^,]+,\s*(\d+)\s*,?(.*)\)")
+
+
+def _args(text):
+    """Top-level comma-separated arguments of a call's argument text."""
+    out, depth, cur = [], 0, ""
+    for ch in text:
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+            continue
+        depth += (ch == "(") - (ch == ")")
+        cur += ch
+    return out + [cur.strip()] if cur.strip() else out
+
+
+def _event_def(script, event_id):
+    """(parameter names, body) of $Event(event_id) in a script, else None."""
+    m = re.search(r"^\$Event\(%d,[^(]*\(([^)]*)\)\s*\{(.*?)^\}\);" % event_id,
+                  EMEVD.get(script, ""), re.M | re.S)
+    return ([x.strip() for x in m.group(1).split(",") if x.strip()], m.group(2)) if m else None
+
+
+def _hands_out(script, line, needle, depth=4):
+    """Does this script line hand out an item lot through `needle` (a number or an event's
+    parameter name)? A lot id can be any other number too: an animation (Stormfoot Catacombs'
+    lot 20020's follow-ups in other maps), a SpEffect or player entity (Tricia's Pomander), an
+    action button (Mohgwyn Seal) or a grace flag (Axe of Godfrey). So it must reach
+    AwardItemLot / AwardItemsIncludingClients, directly or through the events it starts.
+    None when the event it starts isn't in Convergence's scripts (can't tell)."""
+    code = line.split("//")[0]
+    word = re.compile(r"(?<![\w.])%s(?![\w.])" % re.escape(str(needle)))
+    init = _INIT.search(code)
+    if not init:
+        return bool(AWARD.search(code) and word.search(code))
+    target = _event_def("common_func" if init.group(1) else script, int(init.group(2)))
+    if target is None or depth == 0:
+        return None
+    names, body = target
+    found = False
+    for i, a in enumerate(_args(init.group(3))):
+        if word.search(a) and i < len(names):
+            for inner in body.splitlines():
+                if re.search(r"(?<![\w.])%s(?![\w.])" % names[i], inner.split("//")[0]):
+                    r = _hands_out("common_func" if init.group(1) else script, inner, names[i], depth - 1)
+                    if r is None:
+                        return None
+                    found |= r
+    return found
+
+
 @functools.lru_cache(None)
 def lot_in_events(lot):
-    """Return [(script map, line, numbers on the line)] mentioning this lot."""
+    """Return [(script map, line, numbers on the line)] that hand out this lot (see _hands_out)."""
     out = []
     rx = re.compile(r"(?<![\d.])%d(?![\d.])" % lot)
     for m, text in EMEVD.items():
         for line in text.splitlines():
-            if rx.search(line) and "DisplayGenericDialog" not in line:
+            if rx.search(line) and _hands_out(m, line, lot) is not False:
                 code = line.split("//")[0]
                 # InitializeEvent(slot, eventId, args...): only the args are game values
                 code = re.sub(r"Initialize(?:Common)?Event\(\s*\d+\s*,\s*\d+\s*,?", "(", code)
@@ -226,6 +289,13 @@ PLACE = {}
 for f in ["PlaceName", "PlaceName_dlc01", "PlaceName_dlc02"]:
     PLACE.update({int(k): v for k, v in json.load(open(f"{common.ITEM_DIR}/{f}.fmg.json", encoding="utf-8")).items()})
 WMP, _ = rows(f"{common.REG_DIR}/WorldMapPointParam.param")
+
+
+def row_map(rid):
+    """The map (overworld tile or dungeon) a world map row is drawn in."""
+    b = WMP[rid]
+    return f"m{b[0x20]:02d}_{b[0x21]:02d}_{b[0x22]:02d}_00"
+
 BOSS_MARKERS = []
 for rid, b in WMP.items():
     t = struct.unpack_from("<i", b, 0x30)[0]
@@ -272,7 +342,7 @@ for rid, b in WMP.items():
     for k in range(8):
         t = struct.unpack_from("<i", b, 0x30 + 12 * k)[0]
         if b[0x90 + k] == 1 and t in NPC_NAMES and "<" not in NPC_NAMES[t]:
-            NPC_ROWS.append({"row": rid, "name": NPC_NAMES[t]})
+            NPC_ROWS.append({"row": rid, "name": NPC_NAMES[t], "at": _world_xz(b)})
 # Words of an NPC's name that don't identify them on their own ("Sage Gowry": only "gowry" counts).
 NPC_TITLE_WORDS = {"the", "of", "sage", "sorcerer", "sorceress", "witch", "knight", "merchant", "warrior",
                    "scout", "noble", "hunter", "bloody", "finger", "half", "wolf", "castellan", "pureblood",
@@ -283,9 +353,69 @@ NPC_TITLE_WORDS = {"the", "of", "sage", "sorcerer", "sorceress", "witch", "knigh
                    "demi", "human", "beholder", "death", "dead", "sir", "rya", "d"}
 
 
+# Names the notes use for an NPC whose name text says something else ("Boggart's quest": the game
+# calls Blackguard Big Boggart just "Blackguard").
+NPC_ALIASES = {"boggart": "blackguard"}
+
+
+# Where a note names the person: "Given by Tanith after...", "Found on Sorcerer Azur", "Boggart's
+# quest", "after defeating Festering Fingerprint Vyke", "after the Istvan invasion".
+NPC_PHRASE = re.compile(r"(?:given by|found on|sold by|looted from|dropped by|purchased from|defeating)\s+"
+                        r"(.+?)(?=\s+(?:after|in|at|through|near|when)\b|$)"
+                        r"|(\S+(?:\s\S+){0,3}?)(?:'s)?\s+(?:quest|invasion)\b", re.I)
+
+
+def _npc_named(loc, names):
+    """The names in `names` the note's text gives as the person (see NPC_PHRASE): those sharing
+    the most words with that phrase (not titles). Several only when they match the same words
+    (one person under several names: "Tanith, Volcano Manor Proprietress", "Tanith's Knight");
+    else none. The rest of the note can name places with NPC-like words ("Dragon Communion",
+    "Mausoleum"), so only the phrase counts."""
+    from matching import norm
+    words = set()
+    for m in NPC_PHRASE.finditer(loc):
+        words |= set(norm(m.group(1) or m.group(2)))
+    words |= {NPC_ALIASES[w] for w in words if w in NPC_ALIASES}
+    hits = {n: frozenset(w for w in norm(n) if w not in NPC_TITLE_WORDS and len(w) >= 4) & words for n in names}
+    best = max((len(h) for h in hits.values()), default=0)
+    top = {n: h for n, h in hits.items() if best and len(h) == best}
+    return list(top) if len(set(top.values())) == 1 else []
+
+
+@functools.lru_cache(None)
+def npc_placements():
+    """NPCs you can talk to, by name: {name: [(map, part)]} from the map files (parts with a talk
+    script) and NpcParam's name text (+0x0C, NpcName)."""
+    out = defaultdict(list)
+    npc, _ = rows(f"{common.REG_DIR}/NpcParam.param")
+    for npc_id, spots in world_index()["enemies"].items():
+        b = npc.get(npc_id)
+        name = NPC_NAMES.get(struct.unpack_from("<i", b, 0x0C)[0]) if b else None
+        if name and "<" not in name:
+            out[name] += [(m, p) for m, p in spots if p["talk"] > 0]
+    return {n: v for n, v in out.items() if v}
+
+
+def npc_spots_for_text(loc):
+    """Where the NPC a note names stands ("Given by Tanith", "Found on Sorcerer Azur"), for NPCs
+    without a marker of their own. An NPC placed in several maps over their quest: the map with
+    the most of their spots (Gideon: Roundtable Hold, not the Ashen Capital)."""
+    places = npc_placements()
+    names = _npc_named(loc, places)
+    if not names:
+        return []
+    spots = {}
+    for m, p in (s for n in names for s in places[n]):   # one per spot: a tile's _10 variant repeats it
+        spots.setdefault((m[:9], round(p["pos"][0]), round(p["pos"][2])), (m, p))
+    per_map = Counter(k[0] for k in spots)
+    best = max(per_map.values())
+    return [v for k, v in spots.items() if per_map[k[0]] == best]
+
+
 def npc_rows_for_text(loc):
     """The NPC markers whose NPC the note's location text names ("Given by Gowry", "Ranni's
-    Quest", "Patches Quest"): a word of the NPC's name that isn't just a title."""
+    Quest", "Patches Quest"): a word of the NPC's name that isn't just a title. When the note
+    also names the region ("Given by Yura in Liurnia"), only the NPC's markers there."""
     from matching import norm
     words = set(norm(loc))
     out = []
@@ -294,7 +424,11 @@ def npc_rows_for_text(loc):
         if own & words:
             out.append(r)
     names = {r["name"] for r in out}
-    return out if len(names) == 1 else []    # two different NPCs named: don't guess
+    if len(names) != 1:
+        return []    # two different NPCs named: don't guess
+    compass = {"north", "south", "east", "west", "central"}
+    there = [r for r in out if (region_words(r) - compass) & words]
+    return there or out
 
 
 def maps_for_entity(n, script):
@@ -321,15 +455,74 @@ def map_of_lot(lot):
     return scripts.pop() if len(scripts) == 1 else None
 
 
+def award_flag_maps(lot):
+    """Maps whose flags the event that awards `lot` waits for, from the flags' digits: the Shadow
+    Rune of Magma comes once two of the three ruined forges (flags 42007000, 42027000, 42037000)
+    are done, wherever the player is then. Only events that award it with a plain
+    AwardItemLot(lot), so the rest of their body is about this lot."""
+    out = []
+    for script, line, _ in lot_in_events(lot):
+        if _INIT.search(line):
+            continue
+        body = next((b for s, b in EVENT_BODIES if s == script and line in b), "")
+        for f in re.findall(r"EventFlag\((\d+)\)", body):
+            m = map_for_id(int(f))
+            if m and m not in out:
+                out.append(m)
+    return out
+
+
+@functools.lru_cache(None)
+def talk_scripts():
+    """{talk script id: bytecode} of the talk scripts Convergence ships (see TALK_DIR)."""
+    from dump_fmg import bnd4
+    out = {}
+    for f in glob.glob(TALK_DIR + "*.talkesdbnd.dcx"):
+        for _, name, data in bnd4(dcx(open(f, "rb").read())):
+            out[int(re.search(r"t(\d+)\.esd", name).group(1))] = data
+    return out
+
+
+def talk_giver_spots(lot, flag):
+    """Where the NPC stands whose talk script hands out `lot`: the one script with both the lot and
+    its pickup flag as integer constants (bytecode 0x82 <i32>). A lot id alone turns up in many
+    scripts; with its flag, Tricia's Pomander is Smithing Master Hewg's (Roundtable Hold)."""
+    if not flag:
+        return []
+    want = (b"\x82" + struct.pack("<i", lot), b"\x82" + struct.pack("<i", flag))
+    talks = [t for t, d in talk_scripts().items() if all(w in d for w in want)]
+    if len(talks) != 1:
+        return []
+    spots = {}
+    for m, p in world_index()["talks"].get(talks[0], []):
+        spots.setdefault((m[:9], round(p["pos"][0]), round(p["pos"][2])), (m, p))
+    return list(spots.values())
+
+
+# Overworld graces and their region names ("Mountaintops of the Giants"): (area, world x, z, region).
+GRACE_REGIONS = [(int(g["at"][0][1:]), g["at"][1], g["at"][3], g["region"])
+                 for g in __import__("where").load_places()
+                 if g["kind"] == "grace" and g["region"] and g["at"][0] in ("m60", "m61")]
+
+
 def region_words(row):
-    """Words of the region label nearest to a row ("East Caelid - Dragonbarrow"), same area only."""
+    """Words of the region label nearest to a row ("East Caelid - Dragonbarrow") and of its
+    nearest grace's region (Castle Sol's Death Rite Bird is nearer the Snowfield's label, but its
+    grace is in the Mountaintops), same area only; without "the", "of", "and"."""
     from matching import norm
     area, x, z = row["at"]
     near = [r for r in REGION_LABELS if r["at"][0] == area]
     if not near:
         return set()
     best = min(near, key=lambda r: (r["at"][1] - x) ** 2 + (r["at"][2] - z) ** 2)
-    return set(norm(best["name"]))
+    graces = sorted((g for g in GRACE_REGIONS if g[0] == area), key=lambda g: (g[1] - x) ** 2 + (g[2] - z) ** 2)
+    return (set(norm(best["name"])) | set(norm(graces[0][3]) if graces else ())) - {"the", "of", "and"}
+
+
+# Names the notes use for a boss whose map marker is called differently: (pattern, marker name).
+BOSS_ALIASES = [
+    (r"(?<!Consort )\b(?:General )?Radahn\b(?! Festival)", "Starscourge Radahn"),
+]
 
 
 def place_for_text(loc):
@@ -342,6 +535,8 @@ def place_for_text(loc):
     from matching import norm
     if re.search(r"given by|quest", loc, re.I):
         return []
+    for pattern, name in BOSS_ALIASES:
+        loc = re.sub(pattern, name, loc)
     words = norm(loc)
     defeat = re.search(r"defeat|drop|killed|slain", loc, re.I) is not None
     best, hits = None, []
@@ -349,7 +544,10 @@ def place_for_text(loc):
         nw = norm(r["name"])
         if nw[:1] == ["the"] and len(nw) > 2:   # "The Shaded Castle" is written "Shaded Castle"
             nw = nw[1:]
-        if not nw or not any(words[i:i + len(nw)] == nw for i in range(len(words) - len(nw) + 1)):
+        # Whole words, also written together ("Deathrite Bird" is the Death Rite Bird).
+        joined = "".join(nw)
+        if not nw or not any(words[i:i + len(nw)] == nw or "".join(words[i:j]) == joined
+                             for i in range(len(words)) for j in range(i + 1, min(i + len(nw), len(words)) + 1)):
             continue
         score = (len(nw), r["boss"] == defeat)
         if best is None or score > best:
@@ -440,9 +638,8 @@ def locate_shop(cat, item_id):
 # ---- resolution -------------------------------------------------------------
 def _from_events(lot, flag):
     """Where an event script hands out `lot`: 2. tied to an entity in a map, else 3. when a flag
-    turns on (a boss or NPC defeated). None if neither. A lot id can also be some other number
-    in a script (Impaler's Catacombs' rune lot 20010 is an animation in Stormveil's), so when
-    some line also names the lot's own pickup flag, only those lines count."""
+    turns on (a boss or NPC defeated). None if neither. When some line also names the lot's own
+    pickup flag, only those lines count (the line that really pairs this lot with its boss)."""
     lines = lot_in_events(lot)
     lines = [x for x in lines if flag in x[2]] or lines
     for script, line, nums in lines:
@@ -483,17 +680,24 @@ def locate(cat, item_id, loc_text):
                 break
         if found:
             continue
-        # 2./3. an event script that hands out the lot. A lot id can also turn up in a script as
-        # some other number (an enemy, an animation), so the first lot of the chain an event
-        # mentions is used, unless that leads outside the map the lot's id names while a later
-        # one leads into it (the Godskin Noble's robe lot 34110401 is also an enemy id in
-        # m34_11's script; the drop is its chain's head, 34110400).
-        candidates = [l for l in chain if lot_in_events(l)] or [own_lot]
+        # 2./3. an event script that hands out the lot (lot_in_events: only lines that award it).
+        # A lot of the chain whose award line also names the pickup flag comes first (catacomb
+        # bosses: InitializeEvent(n, 1200, boss flag, lot, 0, pickup flag)); else the first lot
+        # of the chain that is awarded, unless that leads outside the map the lot's id names
+        # while a later one leads into it.
+        candidates = ([l for l in chain if any(flag in nums for _, _, nums in lot_in_events(l))]
+                      or [l for l in chain if lot_in_events(l)] or [own_lot])
         home = map_for_id(own_lot)
         tried = [_from_events(l, flag) for l in candidates]
         hit = next((r for r in tried if r and home and r["map"] == home), None) or tried[0]
         if hit:
             results.append(hit)
+            found = True
+        if not found and lot in BASE_GAME_DROPS:
+            # 3b. dropped by an enemy whose event script is the base game's (see BASE_GAME_DROPS)
+            m, entity = BASE_GAME_DROPS[lot]
+            p = msb(m)["entity"][entity]
+            results.append({"how": "enemy", "map": m, "pos": p["pos"], "part": p["name"], "lot": lot, "flag": flag})
             found = True
         if not found:
             # 4. a pickup in a map file other than the one the lot id points at
@@ -520,26 +724,51 @@ def locate(cat, item_id, loc_text):
         if not found:
             results.append({"how": "lot-only", "lot": lot, "flag": flag,
                             "events": [s for s, _, _ in lot_in_events(lot)][:3]})
-    # 6. sold in a shop
+    # 6. sold in a shop; first, when the note says it is ("Sold by Enia after defeating Hoarah
+    # Loux": the Axe of Godfrey also has a lot in Stormveil, which isn't where the note sends you)
+    if re.search(r"\b(?:sold|purchased|bought)\b", loc_text, re.I):
+        shop = locate_shop(cat, item_id)
+        if any(r["how"] in PLACED for r in shop):
+            results = [r for r in results if r["how"] not in PLACED] + shop
     if not any(r["how"] in PLACED for r in results):
         results += locate_shop(cat, item_id)
     # 7. the note's location text names a boss marker or landmark icon on the map
     if not any(r["how"] in PLACED for r in results):
-        for r in place_for_text(loc_text):
+        named = place_for_text(loc_text)
+        # Several copies fit the text ("Limgrave Night's Cavalry" is also on the Weeping
+        # Peninsula, in South Limgrave): the one in the tile the drop's lot id names.
+        tiles = {map_for_id(r["lot"]) for r in results if r.get("lot")} - {None}
+        named = [r for r in named if row_map(r["row"]) in tiles] or named
+        for r in named:
             results.append({"how": "boss-marker" if r["boss"] else "place-name", "row": r["row"], "boss": r["name"]})
     on_map = ("boss-marker", "place-name")
     # 8. ... or names an NPC that has a marker (quests and gifts)
     if not any(r["how"] in PLACED + on_map for r in results):
         for r in npc_rows_for_text(loc_text):
             results.append({"how": "npc-marker", "row": r["row"], "boss": r["name"]})
-    # 9. only the map is known (the lot's id, or the one map script awarding it): the map's boss
-    # marker, the dungeon's entrance or the tile (see generate.py Placer.place_on_map)
+    # 8b. ... or names an NPC without a marker: where they stand in the map files
+    if not any(r["how"] in PLACED + on_map + ("npc-marker",) for r in results):
+        for m, p in npc_spots_for_text(loc_text):
+            results.append({"how": "npc", "map": m, "pos": p["pos"], "part": p["name"]})
+    # 8c. ... or the one NPC whose talk script hands out the lot (it has the lot and its flag)
+    if not any(r["how"] in PLACED + on_map + ("npc-marker",) for r in results):
+        for r in [r for r in results if r["how"] == "lot-only"]:
+            spots = talk_giver_spots(r["lot"], r["flag"])
+            for m, p in spots:
+                results.append({"how": "npc", "map": m, "pos": p["pos"], "part": p["name"]})
+            if spots:
+                break
+    # 9. only the map is known (the lot's id, or the one map script awarding it; else the maps
+    # whose flags the awarding event waits for): the map's boss marker, the dungeon's entrance or
+    # the tile (see generate.py Placer.place_on_map)
     if not any(r["how"] in PLACED + on_map + ("npc-marker",) for r in results):
         for r in [r for r in results if r["how"] == "lot-only"]:
             m = map_of_lot(r["lot"])
-            if m:
-                defeat = re.search(r"defeat|drop|killed|slain|invasion|invader", loc_text, re.I) is not None
+            maps = [m] if m else award_flag_maps(r["lot"])
+            defeat = re.search(r"defeat|drop|killed|slain|invasion|invader", loc_text, re.I) is not None
+            for m in maps:
                 results.append({"how": "map-area", "map": m, "boss": defeat, "lot": r["lot"], "flag": r["flag"]})
+            if maps:
                 break
     return results
 

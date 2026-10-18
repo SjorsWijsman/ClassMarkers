@@ -66,6 +66,18 @@ class Placing(unittest.TestCase):
         self.assertEqual((p["block"], p["area"], p["gx"], p["gz"]), (1201, 12, 1, 0))
         self.assertEqual((p["how"], p["disp_mask"]), ("exact-dungeon", 2))   # underground layer
 
+    def test_map_without_anything_goes_through_the_map_converting_into_it(self):
+        # m12_09 has no icons, grace or conversion; m12_01's point (0, 0, 0) is its (100, 0, 0).
+        placer = Placer(ROWS, PLACE_NAMES, conv={"m12_01": [((0.0, 0.0, 0.0), "m12_09_00_00", (100.0, 0.0, 0.0))]})
+        p = placer.place("m12_09_00_00", (110.0, 2.0, 3.0))
+        self.assertEqual((p["block"], p["area"], p["gx"], p["x"], p["y"], p["z"]), (1201, 12, 1, 10.0, 2.0, 3.0))
+
+    def test_dungeon_without_icons_goes_with_its_grace(self):
+        # A Convergence dungeon under the DLC map with no map icons of its own (Raya Crystalia).
+        placer = Placer(ROWS, PLACE_NAMES, graces={(31, 83): {"disp_mask": 4, "text_id": 4000}})
+        p = placer.place("m31_83_00_00", (1.0, 2.0, 3.0))
+        self.assertEqual((p["block"], p["how"], p["disp_mask"], p["text_id"]), (3183, "exact-dungeon", 4, 4000))
+
 
 if __name__ == "__main__":
     unittest.main()

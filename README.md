@@ -115,6 +115,11 @@ GitHub runs these on every push (`.github/workflows/ci.yml`); run them locally b
 - Generator output: `generated.rs` is committed, so after changing the generator run
   `python tools/generate.py` and review `git diff plugin/src/generated.rs`. Every marker, item
   and description line it gains or loses shows up there.
+- Item positions: `python tools/where.py --check` lists the note entries whose item was found away
+  from the place the note names ("Impaler Catacombs", but the item's lot is awarded in
+  Stormveil). `python tools/where.py <item name>` shows where one item is: its map, the graces,
+  bosses and landmarks around it with distance and direction, and roughly where that is on the
+  overworld. `--find <text>` lists named places, and `<map> <x> <y> <z>` describes any position.
 
 ### Project layout
 
@@ -124,6 +129,7 @@ GitHub runs these on every push (`.github/workflows/ci.yml`); run them locally b
 | `plugin/src/generated.rs` | Marker and note data, written by `tools/generate.py`. Don't edit by hand.                 |
 | `tools/generate.py`       | Reads Convergence's files and writes `generated.rs`.                                      |
 | `tools/requirements.txt`  | The generator's Python packages.                                                          |
+| `tools/where.py`          | Names map positions (graces, bosses, landmarks) and checks items against their notes.     |
 | `tools/tests/`            | Tests for the generator's matching and placement rules.                                   |
 | `tools/profiles.ps1`      | Adds/removes our entry in Convergence's launch profiles (`Install.bat`, `Uninstall.bat`). |
 | `tools/update.ps1`        | `Update.bat`: generate, build, install.                                                   |
@@ -136,12 +142,19 @@ GitHub runs these on every push (`.github/workflows/ci.yml`); run them locally b
 ### How it works
 
 - **Item positions** come from Convergence's data: item lots → treasure positions in the map
-  files, or the boss/NPC whose defeat awards the lot (event scripts). Items in caves, catacombs,
-  tunnels and gaols go on the dungeon's entrance icon. Without an exact spot: an NPC the note names
-  that has a map marker ("Given by Gowry" → Gowry), else the map the lot belongs to, on a boss
-  marker there the note names, the dungeon's entrance, a landmark or the tile's middle. A marker
-  within 25 m of another map icon (a grace, an entrance, a boss, another marker) is moved 25 m
-  aside, so neither hides the other.
+  files, or the boss/NPC whose defeat awards the lot (event scripts; only lines that really
+  award it, directly or through the events they start, since a lot id can also be an animation
+  or a flag). A note that says the item is sold or purchased goes with the shop. Items in caves,
+  catacombs, tunnels and gaols go on the dungeon's entrance icon; a dungeon without icons of its
+  own goes with its grace's world map. Without an exact spot: an NPC the note names, on their map
+  marker ("Given by Gowry" → Gowry) or where they stand in the map files ("Given by Tanith"), or
+  the one NPC whose talk script hands out the lot; else the map the lot belongs to (or the maps
+  whose flags the awarding event waits for), on a boss marker there the note names, the dungeon's
+  entrance, a landmark or the tile's middle. When several markers fit the note (eight Night's
+  Cavalry), the one in the tile the lot belongs to wins. A few drops awarded by base-game scripts
+  that Convergence doesn't ship are listed by hand (`BASE_GAME_DROPS` in `tools/locate.py`). A
+  marker within 25 m of another map icon (a grace, an entrance, a boss, another marker) is moved
+  25 m aside, so neither hides the other.
 - **Markers** are rows added to `WorldMapPointParam` in memory at startup (found through
   fromsoftware-rs). The world map only draws
   a row whose **id encodes its map block** (`AABBnn` for dungeon map `mAA_BB`, `PPGGZZnn` for world
